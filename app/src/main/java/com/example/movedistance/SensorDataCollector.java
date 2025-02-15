@@ -122,6 +122,7 @@ public class SensorDataCollector extends AppCompatActivity {
                 collectGPSData(timestamp);
                 collectIMUData(timestamp);
 
+                processIMUData();
                 handler.postDelayed(this, PROCESS_INTERVAL_01); // 1초마다 반복 실행
             }
         }, PROCESS_INTERVAL_01);
@@ -269,7 +270,20 @@ public class SensorDataCollector extends AppCompatActivity {
 
     //IMU 데이터 처리
     private void processIMUData() {
-        //전처리 미완성 구현 필요
+        if (!imuDataList.isEmpty()) {
+            long startTimestamp = System.currentTimeMillis() - (60 * 1000); // 최근 1분 데이터 기준
+            Map<String, double[][]> processedData = IMUProcessor.processIMU(imuDataList);
+
+            for (Map.Entry<String, double[][]> entry : processedData.entrySet()) {
+                Map<String, Object> dataMap = new HashMap<>();
+                dataMap.put(entry.getKey(), entry.getValue()); // double[][] 데이터를 Object로 저장
+
+                addData(imuProcessedDataList, dataMap, "IMU Processed");
+            }
+
+            // ✅ 1분 이전 데이터 삭제
+            imuDataList.removeIf(record -> (long) record.get("timestamp") < startTimestamp);
+        }
     }
     private void collectIMUData(long timestamp) {
         if (sensorManager == null) {

@@ -40,4 +40,8 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
+
+    // https://mvnrepository.com/artifact/org.apache.commons/commons-math3
+    implementation("org.apache.commons:commons-math3:3.6.1")
+
 }
