@@ -3,6 +3,7 @@ package com.example.movedistance;
 import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.content.res.AssetManager;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -29,6 +30,7 @@ import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -140,11 +142,26 @@ public class SensorDataCollector extends AppCompatActivity {
             public void run() {
                 processBTSData();
                 processGPSData();
+                processAI();
                 handler.postDelayed(this, PROCESS_INTERVAL_05); // 5초마다 반복 실행
             }
         }, PROCESS_INTERVAL_05);
 
 
+    }
+    //AI 연결
+    private  void processAI(){
+        // 1. PyTorchHelper 초기화
+        PyTorchHelper pyTorchHelper = new PyTorchHelper(this);
+
+        // 2. 예측할 데이터 입력 (예: 두 개의 float 값)
+        float[] inputData = {1.5f, 2.3f};
+
+        // 3. 모델 예측 실행
+        float[] outputData = pyTorchHelper.predict(inputData);
+
+        // 4. 예측 결과 확인
+        Log.d("PyTorch Output", "Result: " + Arrays.toString(outputData));
     }
 
     //AP 데이터 처리
@@ -156,9 +173,6 @@ public class SensorDataCollector extends AppCompatActivity {
             for (Map<String, Object> entry : processedData) {
                 addData(apProcessedDataList, entry, "WiFi Processed");
             }
-
-            // ✅ BTS 처리 방식과 동일하게 1분 이전 데이터 삭제
-            apDataList.removeIf(record -> (long) record.get("timestamp") < startTimestamp);
         }
     }
 
@@ -205,9 +219,6 @@ public class SensorDataCollector extends AppCompatActivity {
             for (Map<String, Object> entry : processedData) {
                 addData(btsProcessedDataList, entry, "BTS Processed");
             }
-
-            // ✅ 원본 데이터 리스트 정리 (1분 이전 데이터 삭제)
-            btsDataList.removeIf(record -> (long) record.get("timestamp") < startTimestamp);
         }
     }
     private void collectBTSData(long timestamp) {
@@ -245,9 +256,6 @@ public class SensorDataCollector extends AppCompatActivity {
             for (Map<String, Object> entry : processedData) {
                 addData(gpsProcessedDataList, entry, "GPS Processed");
             }
-
-            // ✅ 1분 이전 데이터 삭제
-            gpsDataList.removeIf(record -> (long) record.get("timestamp") < startTimestamp);
         }
     }
 
@@ -280,9 +288,6 @@ public class SensorDataCollector extends AppCompatActivity {
 
                 addData(imuProcessedDataList, dataMap, "IMU Processed");
             }
-
-            // ✅ 1분 이전 데이터 삭제
-            imuDataList.removeIf(record -> (long) record.get("timestamp") < startTimestamp);
         }
     }
     private void collectIMUData(long timestamp) {

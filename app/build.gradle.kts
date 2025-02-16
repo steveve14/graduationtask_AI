@@ -44,4 +44,7 @@ dependencies {
     // https://mvnrepository.com/artifact/org.apache.commons/commons-math3
     implementation("org.apache.commons:commons-math3:3.6.1")
 
+    implementation("org.pytorch:pytorch_android:1.10.0")
+    implementation("org.pytorch:pytorch_android_torchvision:1.10.0")
+
 }
