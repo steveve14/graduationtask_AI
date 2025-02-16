@@ -3,12 +3,14 @@ package com.example.movedistance;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.annotation.SuppressLint;
+import android.content.Intent;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.os.Bundle;
 import android.widget.Button;
+import android.widget.CursorAdapter;
 import android.widget.TextView;
 
 public class MainActivity extends AppCompatActivity {
@@ -16,7 +18,7 @@ public class MainActivity extends AppCompatActivity {
     TextView text1, text2, text3, ing, text4, text5, textAI;
     SensorManager manager;
     SensorEventListener listener;
-    Button startbtn;
+    Button startbtn, startai;
 
     long startTime, nowTime;
     long times;
@@ -78,6 +80,7 @@ public class MainActivity extends AppCompatActivity {
         textAI = findViewById(R.id.textViewAI);
 
         startbtn = findViewById(R.id.start);
+        startai = findViewById(R.id.startai);
 
         startTime = 0;
 
@@ -324,6 +327,13 @@ public class MainActivity extends AppCompatActivity {
 
                 startORstop = true;
             }
+        });
+
+        //AI TEST
+        startai.setOnClickListener(v -> {
+            Intent intent = new Intent(MainActivity.this, SensorDataCollector.class);
+            startActivity(intent);
+            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
         });
     }
 
