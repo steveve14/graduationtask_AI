@@ -63,6 +63,7 @@ public class SensorDataCollector extends AppCompatActivity {
     private TelephonyManager telephonyManager;
     private FusedLocationProviderClient fusedLocationProviderClient;
     private SensorManager sensorManager;
+    private PyTorchHelper pyTorchHelper;
     private boolean notstartAI = true;
 
     @Override
@@ -72,7 +73,7 @@ public class SensorDataCollector extends AppCompatActivity {
 
         wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
         telephonyManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
-        SensorManager sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
+        sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
 
         requestPermissions();
@@ -150,23 +151,27 @@ public class SensorDataCollector extends AppCompatActivity {
 
     }
     //AI 연결
-    private  void processAI(){
-        if(notstartAI){
+    private void processAI() {
+        if (notstartAI) {
             notstartAI = false;
-        }else{
-            // 1. PyTorchHelper 초기화
-            PyTorchHelper pyTorchHelper = new PyTorchHelper(this);
+        } else {
+            // 1. ✅ 모델이 요구하는 입력 크기 (예제: 340개 값)
+            int inputSize = 340;
+            float[] inputData = new float[inputSize];
 
-            // 2. 예측할 데이터 입력 (예: 두 개의 float 값)
-            float[] inputData = {1.5f, 2.3f};
+            // 2. ✅ 입력 데이터를 랜덤 값으로 채우기 (예제)
+            for (int i = 0; i < inputSize; i++) {
+                inputData[i] = (float) Math.random();
+            }
 
-            // 3. 모델 예측 실행
+            // 3. ✅ PyTorch 모델 예측 실행
             float[] outputData = pyTorchHelper.predict(inputData);
 
-            // 4. 예측 결과 확인
+            // 4. ✅ 예측 결과 출력
             Log.d("PyTorch Output", "Result: " + Arrays.toString(outputData));
         }
     }
+
 
     //AP 데이터 처리
     private void processAPData() {
