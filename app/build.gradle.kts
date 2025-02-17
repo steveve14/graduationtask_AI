@@ -41,10 +41,13 @@ dependencies {
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
 
-    // https://mvnrepository.com/artifact/org.apache.commons/commons-math3
+    //math
     implementation("org.apache.commons:commons-math3:3.6.1")
-
+    //AI 작동
     implementation("org.pytorch:pytorch_android:1.10.0")
     implementation("org.pytorch:pytorch_android_torchvision:1.10.0")
+    //지도
+    implementation ("org.osmdroid:osmdroid-android:6.1.14")
+    implementation ("org.osmdroid:osmbonuspack:6.9.0")
 
 }

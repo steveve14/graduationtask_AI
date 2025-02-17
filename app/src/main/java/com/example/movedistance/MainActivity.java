@@ -3,6 +3,7 @@ package com.example.movedistance;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.annotation.SuppressLint;
+import android.content.Context;
 import android.content.Intent;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
@@ -12,6 +13,8 @@ import android.os.Bundle;
 import android.widget.Button;
 import android.widget.CursorAdapter;
 import android.widget.TextView;
+
+import org.osmdroid.views.MapView;
 
 public class MainActivity extends AppCompatActivity {
     //define variables
