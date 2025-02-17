@@ -28,6 +28,10 @@ import androidx.core.content.ContextCompat;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
 
+import org.pytorch.Tensor;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -64,6 +68,7 @@ public class SensorDataCollector extends AppCompatActivity {
     private FusedLocationProviderClient fusedLocationProviderClient;
     private SensorManager sensorManager;
     private PyTorchHelper pyTorchHelper;
+    private final ExecutorService executorService = Executors.newSingleThreadExecutor();
     private boolean notstartAI = true;
 
     @Override
@@ -124,8 +129,7 @@ public class SensorDataCollector extends AppCompatActivity {
                 collectBTSData(timestamp);
                 collectGPSData(timestamp);
                 collectIMUData(timestamp);
-
-                processIMUData();
+//                processIMUData();
                 handler.postDelayed(this, PROCESS_INTERVAL_01); // 1초마다 반복 실행
             }
         }, PROCESS_INTERVAL_01);
@@ -134,42 +138,56 @@ public class SensorDataCollector extends AppCompatActivity {
             @Override
             public void run() {
                 processAPData();
+                processBTSData();
+                processGPSData();
+                processIMUData();
+                processAI();
                 handler.postDelayed(this, PROCESS_INTERVAL_60); // 60초마다 반복 실행
             }
         }, PROCESS_INTERVAL_60);
 
-        handler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                processBTSData();
-                processGPSData();
-                processAI();
-                handler.postDelayed(this, PROCESS_INTERVAL_05); // 5초마다 반복 실행
-            }
-        }, PROCESS_INTERVAL_05);
-
-
+//        handler.postDelayed(new Runnable() {
+//            @Override
+//            public void run() {
+//                processBTSData();
+//                processGPSData();
+//                processAI();
+//                handler.postDelayed(this, PROCESS_INTERVAL_05); // 5초마다 반복 실행
+//            }
+//        }, PROCESS_INTERVAL_05);
     }
     //AI 연결
     private void processAI() {
-        if (notstartAI) {
-            notstartAI = false;
-        } else {
-            // 1. ✅ 모델이 요구하는 입력 크기 (예제: 340개 값)
-            int inputSize = 340;
-            float[] inputData = new float[inputSize];
-
-            // 2. ✅ 입력 데이터를 랜덤 값으로 채우기 (예제)
-            for (int i = 0; i < inputSize; i++) {
-                inputData[i] = (float) Math.random();
+        executorService.execute(() -> {
+            if (pyTorchHelper == null) {
+                Log.e("IMU", "PyTorchHelper 초기화");
+                pyTorchHelper = new PyTorchHelper(this);
             }
 
-            // 3. ✅ PyTorch 모델 예측 실행
-            float[] outputData = pyTorchHelper.predict(inputData);
+            if (notstartAI) {
+                notstartAI = false;
+            } else {
+                // ✅ 1. 모델이 요구하는 입력 크기 (340, 60)
+                int sequenceLength = 340;  // 모델이 기대하는 시퀀스 길이
+                int featureSize = 60;       // 모델이 기대하는 feature 개수
 
-            // 4. ✅ 예측 결과 출력
-            Log.d("PyTorch Output", "Result: " + Arrays.toString(outputData));
-        }
+                float[] inputData = new float[sequenceLength * featureSize];
+
+                // ✅ 2. 입력 데이터를 랜덤 값으로 채우기 (테스트용)
+                for (int i = 0; i < inputData.length; i++) {
+                    inputData[i] = (float) Math.random();
+                }
+
+                // ✅ 3. 입력 데이터 차원 맞추기 (1, 340, 60) → 3D 텐서로 변환
+                Tensor inputTensor = Tensor.fromBlob(inputData, new long[]{1, sequenceLength, featureSize});
+
+                // ✅ 4. PyTorch 모델 예측 실행
+                float[] outputData = pyTorchHelper.predict(inputTensor);
+
+                // ✅ 5. 예측 결과 출력
+                Log.d("PyTorch Output", "Result: " + Arrays.toString(outputData));
+            }
+        });
     }
 
 
@@ -305,59 +323,144 @@ public class SensorDataCollector extends AppCompatActivity {
             return;
         }
 
+        // ✅ 센서 가져오기
         Sensor accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         Sensor gyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
         Sensor magnetometer = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
+        Sensor rotationVector = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
+        Sensor pressureSensor = sensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE);
+        Sensor gravitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY);
+        Sensor linearAccelSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
 
-        if (accelerometer == null || gyroscope == null || magnetometer == null) {
+        // 하나라도 null이면 측정 불가
+        if (accelerometer == null || gyroscope == null || magnetometer == null ||
+                rotationVector == null || pressureSensor == null ||
+                gravitySensor == null || linearAccelSensor == null) {
             Log.e("IMU", "One or more sensors are not available on this device.");
             return;
         }
 
-        SensorEventListener sensorEventListener = new SensorEventListener() {
-            private final float[] accelValues = new float[3];
-            private final float[] gyroValues = new float[3];
-            private final float[] magValues = new float[3];
+        // ✅ 단발성 측정을 위한 배열/플래그
+        //   - 각각의 센서 데이터를 저장할 공간
+        final float[] accelValues = new float[3];
+        final float[] gyroValues = new float[3];
+        final float[] magValues = new float[3];
+        final float[] rotValues = new float[4]; // 회전 벡터 (쿼터니언)
+        final float[] gravityValues = new float[3];
+        final float[] linearAccelValues = new float[3];
+        final float[] pressureValue = new float[1]; // 기압은 float[1]로 처리
 
+        // 각각 센서가 데이터를 한 번씩 받았는지 체크하기 위한 플래그
+        final boolean[] gotSensorData = new boolean[7];
+        // 인덱스: 0=accel, 1=gyro, 2=mag, 3=rot, 4=pressure, 5=gravity, 6=linear
+
+        SensorEventListener oneTimeListener = new SensorEventListener() {
             @Override
             public void onSensorChanged(SensorEvent event) {
-                if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER) {
-                    System.arraycopy(event.values, 0, accelValues, 0, event.values.length);
-                } else if (event.sensor.getType() == Sensor.TYPE_GYROSCOPE) {
-                    System.arraycopy(event.values, 0, gyroValues, 0, event.values.length);
-                } else if (event.sensor.getType() == Sensor.TYPE_MAGNETIC_FIELD) {
-                    System.arraycopy(event.values, 0, magValues, 0, event.values.length);
+                switch (event.sensor.getType()) {
+                    case Sensor.TYPE_ACCELEROMETER:
+                        System.arraycopy(event.values, 0, accelValues, 0, 3);
+                        gotSensorData[0] = true;
+                        break;
+
+                    case Sensor.TYPE_GYROSCOPE:
+                        System.arraycopy(event.values, 0, gyroValues, 0, 3);
+                        gotSensorData[1] = true;
+                        break;
+
+                    case Sensor.TYPE_MAGNETIC_FIELD:
+                        System.arraycopy(event.values, 0, magValues, 0, 3);
+                        gotSensorData[2] = true;
+                        break;
+
+                    case Sensor.TYPE_ROTATION_VECTOR:
+                        SensorManager.getQuaternionFromVector(rotValues, event.values);
+                        gotSensorData[3] = true;
+                        break;
+
+                    case Sensor.TYPE_PRESSURE:
+                        pressureValue[0] = event.values[0];
+                        gotSensorData[4] = true;
+                        break;
+
+                    case Sensor.TYPE_GRAVITY:
+                        System.arraycopy(event.values, 0, gravityValues, 0, 3);
+                        gotSensorData[5] = true;
+                        break;
+
+                    case Sensor.TYPE_LINEAR_ACCELERATION:
+                        System.arraycopy(event.values, 0, linearAccelValues, 0, 3);
+                        gotSensorData[6] = true;
+                        break;
                 }
 
-                // ✅ 모든 센서 데이터가 업데이트되면 저장
-                Map<String, Object> imuData = Map.of(
-                        "timestamp", timestamp,
-                        "accel_x", accelValues[0], "accel_y", accelValues[1], "accel_z", accelValues[2],
-                        "gyro_x", gyroValues[0], "gyro_y", gyroValues[1], "gyro_z", gyroValues[2],
-                        "mag_x", magValues[0], "mag_y", magValues[1], "mag_z", magValues[2]
-                );
+                // ✅ 모든 센서에서 한 번씩 데이터를 받았다면, 리스너 해제 후 한 번만 저장
+                if (allSensorsReceived()) {
+                    // 센서 데이터 저장
+                    Map<String, Object> imuData = new HashMap<>();
+                    imuData.put("timestamp", timestamp);
+                    imuData.put("accel.x", accelValues[0]);
+                    imuData.put("accel.y", accelValues[1]);
+                    imuData.put("accel.z", accelValues[2]);
+                    imuData.put("gyro.x", gyroValues[0]);
+                    imuData.put("gyro.y", gyroValues[1]);
+                    imuData.put("gyro.z", gyroValues[2]);
+                    imuData.put("mag.x", magValues[0]);
+                    imuData.put("mag.y", magValues[1]);
+                    imuData.put("mag.z", magValues[2]);
+                    imuData.put("rot.w", rotValues[0]);
+                    imuData.put("rot.x", rotValues[1]);
+                    imuData.put("rot.y", rotValues[2]);
+                    imuData.put("rot.z", rotValues[3]);
+                    imuData.put("pressure.x", pressureValue[0]);
+                    imuData.put("gravity.x", gravityValues[0]);
+                    imuData.put("gravity.y", gravityValues[1]);
+                    imuData.put("gravity.z", gravityValues[2]);
+                    imuData.put("linear_accel.x", linearAccelValues[0]);
+                    imuData.put("linear_accel.y", linearAccelValues[1]);
+                    imuData.put("linear_accel.z", linearAccelValues[2]);
 
-                addData(imuDataList, imuData, "IMU");
+                    addData(imuDataList, imuData, "IMU (One-Time)");
+//                    Log.d("IMU", "✅IMU 데이터 수집 완료!");
+
+                    // ✅ 센서 리스너 해제 (더 이상 데이터 수신 안 함)
+                    sensorManager.unregisterListener(this);
+                }
             }
 
             @Override
             public void onAccuracyChanged(Sensor sensor, int accuracy) {
-                // 정확도 변경 시 처리 필요하면 추가
+                // 필요 시 처리
+            }
+
+            // 모든 센서 데이터를 1회 이상 받았는지 확인
+            private boolean allSensorsReceived() {
+                for (boolean got : gotSensorData) {
+                    if (!got) return false;
+                }
+                return true;
             }
         };
 
-        // ✅ SENSOR_DELAY_GAME 설정 (50~100Hz)
-        sensorManager.registerListener(sensorEventListener, accelerometer, SensorManager.SENSOR_DELAY_GAME);
-        sensorManager.registerListener(sensorEventListener, gyroscope, SensorManager.SENSOR_DELAY_GAME);
-        sensorManager.registerListener(sensorEventListener, magnetometer, SensorManager.SENSOR_DELAY_GAME);
+        // ✅ 센서 리스너 등록 (SENSOR_DELAY_GAME 예: 50~100Hz)
+        sensorManager.registerListener(oneTimeListener, accelerometer, SensorManager.SENSOR_DELAY_GAME);
+        sensorManager.registerListener(oneTimeListener, gyroscope, SensorManager.SENSOR_DELAY_GAME);
+        sensorManager.registerListener(oneTimeListener, magnetometer, SensorManager.SENSOR_DELAY_GAME);
+        sensorManager.registerListener(oneTimeListener, rotationVector, SensorManager.SENSOR_DELAY_GAME);
+        sensorManager.registerListener(oneTimeListener, pressureSensor, SensorManager.SENSOR_DELAY_GAME);
+        sensorManager.registerListener(oneTimeListener, gravitySensor, SensorManager.SENSOR_DELAY_GAME);
+        sensorManager.registerListener(oneTimeListener, linearAccelSensor, SensorManager.SENSOR_DELAY_GAME);
+
+//        Log.d("IMU", "✅ 단발성 센서 리스너 등록 완료 (수집 후 자동 해제).");
     }
 
     // ✅ 제네릭(Generic) 방식으로 모든 타입의 데이터를 저장
     private <T> void addData(List<T> dataList, T data, String tag) {
         if (dataList.size() >= MAX_SIZE) {
             dataList.remove(0); // FIFO 방식으로 가장 오래된 데이터 삭제
+            Log.d(tag, "데이터 제거");
         }
         dataList.add(data);
-        Log.d(tag, data.toString());
+        //Log.d(tag, data.toString());
     }
 }

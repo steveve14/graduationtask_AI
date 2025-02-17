@@ -10,6 +10,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Arrays;
 
 public class PyTorchHelper {
     private static final String TAG = "PyTorchHelper";
@@ -55,28 +56,22 @@ public class PyTorchHelper {
     /**
      * 📌 모델 예측 실행
      */
-    public float[] predict(float[] inputData) {
-        if (model == null) {
-            throw new IllegalStateException("PyTorch 모델이 로드되지 않았습니다.");
+    public float[] predict(Tensor inputTensor) {
+        try {
+            // ✅ 입력 크기 로깅 (디버깅 용도)
+            Log.d("PyTorch", "✅ 입력 텐서 크기: " + Arrays.toString(inputTensor.shape()));
+
+            // ✅ 모델 실행
+            Tensor outputTensor = model.forward(IValue.from(inputTensor)).toTensor();
+
+            // ✅ 출력 크기 로깅
+            Log.d("PyTorch", "✅ 출력 텐서 크기: " + Arrays.toString(outputTensor.shape()));
+
+            return outputTensor.getDataAsFloatArray();
+        } catch (Exception e) {
+            Log.e("PyTorch", "❌ 모델 예측 중 오류 발생: " + e.getMessage());
+            return new float[0];  // 예측 실패 시 빈 배열 반환하여 앱 크래시 방지
         }
-
-        // ✅ 모델이 요구하는 입력 크기로 설정 (예: 340개 값)
-        int expectedInputSize = 340;
-        float[] resizedInput = new float[expectedInputSize];
-
-        // 입력 데이터 크기 확인 후 조정
-        if (inputData.length < expectedInputSize) {
-            System.arraycopy(inputData, 0, resizedInput, 0, inputData.length);
-        } else {
-            System.arraycopy(inputData, 0, resizedInput, 0, expectedInputSize);
-        }
-
-        // 🔹 입력 데이터 PyTorch Tensor 변환
-        long[] shape = new long[]{1, expectedInputSize};
-        Tensor inputTensor = Tensor.fromBlob(resizedInput, shape);
-
-        // 🔹 PyTorch 모델 실행
-        Tensor outputTensor = model.forward(IValue.from(inputTensor)).toTensor();
-        return outputTensor.getDataAsFloatArray();
     }
+
 }
