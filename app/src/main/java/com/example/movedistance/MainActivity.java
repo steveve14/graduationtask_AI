@@ -3,7 +3,7 @@ package com.example.movedistance;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.annotation.SuppressLint;
-import android.content.Context;
+
 import android.content.Intent;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
@@ -11,11 +11,17 @@ import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.os.Bundle;
 import android.widget.Button;
-import android.widget.CursorAdapter;
+
 import android.widget.TextView;
 
+import org.osmdroid.events.MapEventsReceiver;
 import org.osmdroid.util.GeoPoint;
 import org.osmdroid.views.MapView;
+import android.location.Location;
+import android.view.View;
+
+import org.osmdroid.views.overlay.MapEventsOverlay;
+
 
 public class MainActivity extends AppCompatActivity {
     //define variables
@@ -74,7 +80,9 @@ public class MainActivity extends AppCompatActivity {
     private OfflineMapManager offlineMapManager;
     private GpsTracker gpsTracker;
     private MapView mapView;
+    private Button btnMyLocation;
 
+    private boolean isFollowingLocation = false; // 현재 위치 자동 따라가기 여부
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -83,9 +91,7 @@ public class MainActivity extends AppCompatActivity {
 
         //connect to xml
         text2 = findViewById(R.id.textView2);
-//        text3 = findViewById(R.id.textView3);
         ing = findViewById(R.id.ing);
-//        text4 = findViewById(R.id.textView4);
         text5 = findViewById(R.id.textView5);
         textAI = findViewById(R.id.textViewAI);
 
@@ -95,16 +101,49 @@ public class MainActivity extends AppCompatActivity {
         startTime = 0;
         //지도
         mapView = findViewById(R.id.map);
+        btnMyLocation = findViewById(R.id.btnMyLocation);
         offlineMapManager = new OfflineMapManager(this, mapView);
         gpsTracker = new GpsTracker(this);
 
-        // GPS 데이터 업데이트를 받을 콜백 설정
+        // GPS 데이터 업데이트 설정
         gpsTracker.setLocationUpdateCallback((location, speed) -> {
             GeoPoint geoPoint = new GeoPoint(location.getLatitude(), location.getLongitude());
             offlineMapManager.updateLocation(geoPoint, speed);
+
+            // 자동 따라가기 모드가 켜져 있으면 지도 자동 이동
+            if (isFollowingLocation) {
+                mapView.getController().animateTo(geoPoint);
+            }
         });
 
         gpsTracker.startTracking();
+
+        // 현재 위치 버튼 클릭 시 자동 따라가기 활성화 및 지도 이동
+        btnMyLocation.setOnClickListener(v -> {
+            Location currentLocation = gpsTracker.getLastKnownLocation();
+            if (currentLocation != null) {
+                GeoPoint geoPoint = new GeoPoint(currentLocation.getLatitude(), currentLocation.getLongitude());
+                mapView.getController().animateTo(geoPoint);
+                mapView.getController().setZoom(18.0);
+                isFollowingLocation = true; // 자동 따라가기 활성화
+            }
+        });
+
+        // 사용자가 지도를 이동하면 자동 따라가기 해제
+        MapEventsOverlay mapEventsOverlay = new MapEventsOverlay(new MapEventsReceiver() {
+            @Override
+            public boolean singleTapConfirmedHelper(GeoPoint geoPoint) {
+                return false;
+            }
+
+            @Override
+            public boolean longPressHelper(GeoPoint geoPoint) {
+                isFollowingLocation = false; // 길게 누르면 자동 따라가기 해제
+                return false;
+            }
+        });
+        mapView.getOverlays().add(mapEventsOverlay);
+
         //지도 끝
         manager = (SensorManager) getSystemService(SENSOR_SERVICE); //센서관리객체설정
         Sensor accelrometer = manager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
