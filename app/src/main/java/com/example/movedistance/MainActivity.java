@@ -14,6 +14,7 @@ import android.widget.Button;
 import android.widget.CursorAdapter;
 import android.widget.TextView;
 
+import org.osmdroid.util.GeoPoint;
 import org.osmdroid.views.MapView;
 
 public class MainActivity extends AppCompatActivity {
@@ -69,6 +70,12 @@ public class MainActivity extends AppCompatActivity {
 
     boolean startORstop = true;
 
+    //지도 관련
+    private OfflineMapManager offlineMapManager;
+    private GpsTracker gpsTracker;
+    private MapView mapView;
+
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -76,9 +83,9 @@ public class MainActivity extends AppCompatActivity {
 
         //connect to xml
         text2 = findViewById(R.id.textView2);
-        text3 = findViewById(R.id.textView3);
+//        text3 = findViewById(R.id.textView3);
         ing = findViewById(R.id.ing);
-        text4 = findViewById(R.id.textView4);
+//        text4 = findViewById(R.id.textView4);
         text5 = findViewById(R.id.textView5);
         textAI = findViewById(R.id.textViewAI);
 
@@ -86,7 +93,19 @@ public class MainActivity extends AppCompatActivity {
         startai = findViewById(R.id.startai);
 
         startTime = 0;
+        //지도
+        mapView = findViewById(R.id.map);
+        offlineMapManager = new OfflineMapManager(this, mapView);
+        gpsTracker = new GpsTracker(this);
 
+        // GPS 데이터 업데이트를 받을 콜백 설정
+        gpsTracker.setLocationUpdateCallback((location, speed) -> {
+            GeoPoint geoPoint = new GeoPoint(location.getLatitude(), location.getLongitude());
+            offlineMapManager.updateLocation(geoPoint, speed);
+        });
+
+        gpsTracker.startTracking();
+        //지도 끝
         manager = (SensorManager) getSystemService(SENSOR_SERVICE); //센서관리객체설정
         Sensor accelrometer = manager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         Sensor Rotation = manager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
@@ -201,37 +220,37 @@ public class MainActivity extends AppCompatActivity {
                         azims = azim;
                     }
 
-                    float ro = azim-azims;
-                    text3.setText("방향 측정 중.. "+ro+"\n");
-                    if((0>=ro && ro>-45) || (0<=ro && ro<45)) {
-                        text3.setText("당신은 앞을 향했습니다." + "\n\n");
-                        totalY = 0;
-                        totalY += totaldistance - totalX - totalXs - totalYs;
-
-                    } else if((ro>=45 && ro<135)||(ro<=-225 && ro>-315)) {
-                        text3.setText("당신은 오른쪽을 향했습니다." + "\n\n");
-                        totalX = 0;
-                        totalX += totaldistance - totalY - totalXs - totalYs;
-
-                    } else if((ro<=-135 && ro>-225)||(ro>=135 && ro<225)){
-                        text3.setText("당신은 뒤로 향했습니다."+"\n\n");
-                        totalYs = 0;
-                        totalYs += totaldistance - totalX - totalXs - totalY;
-
-                    } else if((ro<=-45 && ro>-135)||(ro>=225 && ro<315) ){
-                        text3.setText("당신은 왼쪽을 향했습니다."+"\n\n");
-                        totalXs = 0;
-                        totalXs += totaldistance - totalX - totalYs - totalY;
-                    }
-
-                    String TY = String.format("%.2f", totalY/100000000);
-                    text3.append("앞쪽으로"+TY+"m를 갔습니다."+"\n");
-                    String TX = String.format("%.2f", totalX/100000000);
-                    text3.append("오른쪽으로"+TX+"m를 갔습니다."+"\n");
-                    String TYs = String.format("%.2f", totalYs/100000000);
-                    text3.append("뒤쪽으로"+TYs+"m를 갔습니다."+"\n");
-                    String TXs = String.format("%.2f", totalXs/100000000);
-                    text3.append("왼쪽으로"+TXs+"m를 갔습니다."+"\n\n");
+//                    float ro = azim-azims;
+//                    text3.setText("방향 측정 중.. "+ro+"\n");
+//                    if((0>=ro && ro>-45) || (0<=ro && ro<45)) {
+//                        text3.setText("당신은 앞을 향했습니다." + "\n\n");
+//                        totalY = 0;
+//                        totalY += totaldistance - totalX - totalXs - totalYs;
+//
+//                    } else if((ro>=45 && ro<135)||(ro<=-225 && ro>-315)) {
+//                        text3.setText("당신은 오른쪽을 향했습니다." + "\n\n");
+//                        totalX = 0;
+//                        totalX += totaldistance - totalY - totalXs - totalYs;
+//
+//                    } else if((ro<=-135 && ro>-225)||(ro>=135 && ro<225)){
+//                        text3.setText("당신은 뒤로 향했습니다."+"\n\n");
+//                        totalYs = 0;
+//                        totalYs += totaldistance - totalX - totalXs - totalY;
+//
+//                    } else if((ro<=-45 && ro>-135)||(ro>=225 && ro<315) ){
+//                        text3.setText("당신은 왼쪽을 향했습니다."+"\n\n");
+//                        totalXs = 0;
+//                        totalXs += totaldistance - totalX - totalYs - totalY;
+//                    }
+//
+//                    String TY = String.format("%.2f", totalY/100000000);
+//                    text3.append("앞쪽으로"+TY+"m를 갔습니다."+"\n");
+//                    String TX = String.format("%.2f", totalX/100000000);
+//                    text3.append("오른쪽으로"+TX+"m를 갔습니다."+"\n");
+//                    String TYs = String.format("%.2f", totalYs/100000000);
+//                    text3.append("뒤쪽으로"+TYs+"m를 갔습니다."+"\n");
+//                    String TXs = String.format("%.2f", totalXs/100000000);
+//                    text3.append("왼쪽으로"+TXs+"m를 갔습니다."+"\n\n");
 
                     text5.setText("걷기,제자리 이동거리: " + String.format("%.2f", walkDistance) + " m\n");
                     text5.append("자전거 이동거리: " + String.format("%.2f", bikeDistance) + " m\n");
@@ -266,27 +285,27 @@ public class MainActivity extends AppCompatActivity {
 
 
 
-                    text4.setText("고도 측정 중... \n\n");
-                    if(th>=0.25){
-                        text4.setText("위쪽을 향했습니다. \n\n");
-                        totalZ = 0;
-                        totalZ += totalheight2 - totalZs;
-
-                    }else if(th<=-0.25){
-                        text4.setText("아래쪽을 향했습니다. \n\n");
-                        totalZs = 0;
-                        totalZs += totalheight2 - totalZ;
-
-                    }else{
-                        text4.setText("위쪽과 아래쪽으로는 이동하지 않았습니다. \n\n");
-                        totalNot = 0;
-                        totalNot += totalheight2 - totalZs - totalZ;
-                    }
+//                    text4.setText("고도 측정 중... \n\n");
+//                    if(th>=0.25){
+//                        text4.setText("위쪽을 향했습니다. \n\n");
+//                        totalZ = 0;
+//                        totalZ += totalheight2 - totalZs;
+//
+//                    }else if(th<=-0.25){
+//                        text4.setText("아래쪽을 향했습니다. \n\n");
+//                        totalZs = 0;
+//                        totalZs += totalheight2 - totalZ;
+//
+//                    }else{
+//                        text4.setText("위쪽과 아래쪽으로는 이동하지 않았습니다. \n\n");
+//                        totalNot = 0;
+//                        totalNot += totalheight2 - totalZs - totalZ;
+//                    }
                     totalNot = (float) Math.round(totalNot*100/100.0);
                     rZ = String.format("%.2f", totalZ/2);
                     rZs= String.format("%.2f", totalZs/2);
-                    text4.append("위쪽으로"+rZ+"m를 갔습니다.\n");
-                    text4.append("아래쪽으로"+rZs+"m를 갔습니다.\n");
+                    text5.append("위쪽으로"+rZ+"m를 갔습니다.\n");
+                    text5.append("아래쪽으로"+rZs+"m를 갔습니다.\n");
 
                     if(firstRun){
                         firstRun = false;
@@ -362,5 +381,11 @@ public class MainActivity extends AppCompatActivity {
     }
     public float getCarbonEmissions(){
         return carbonEmissions;
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        gpsTracker.stopTracking();
     }
 }

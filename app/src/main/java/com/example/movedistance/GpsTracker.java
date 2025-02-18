@@ -4,7 +4,6 @@ import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.location.Location;
-import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import com.google.android.gms.location.*;
 
@@ -14,15 +13,14 @@ public class GpsTracker {
     private LocationCallback locationCallback;
     private Location previousLocation;
     private long previousTime;
-    private GpsUpdateListener listener;
+    private LocationUpdateCallback locationUpdateCallback; // 콜백 인터페이스 대신 직접 설정
 
-    public interface GpsUpdateListener {
+    public interface LocationUpdateCallback {
         void onLocationUpdated(Location location, float speed);
     }
 
-    public GpsTracker(Context context, GpsUpdateListener listener) {
+    public GpsTracker(Context context) {
         this.context = context;
-        this.listener = listener;
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(context);
         initializeLocationUpdates();
     }
@@ -50,12 +48,16 @@ public class GpsTracker {
                     previousLocation = location;
                     previousTime = currentTime;
 
-                    if (listener != null) {
-                        listener.onLocationUpdated(location, speed);
+                    if (locationUpdateCallback != null) {
+                        locationUpdateCallback.onLocationUpdated(location, speed);
                     }
                 }
             }
         };
+    }
+
+    public void setLocationUpdateCallback(LocationUpdateCallback callback) {
+        this.locationUpdateCallback = callback;
     }
 
     public void startTracking() {

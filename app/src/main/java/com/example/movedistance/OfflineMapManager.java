@@ -12,18 +12,32 @@ import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay;
 import java.util.ArrayList;
 import java.util.List;
 
+import android.os.Environment;
+import org.osmdroid.tileprovider.tilesource.XYTileSource;
+
+import java.io.File;
+
 public class OfflineMapManager {
     private final MapView mapView;
     private final MyLocationNewOverlay myLocationOverlay;
     private final List<GeoPoint> routePoints = new ArrayList<>();
-    private final List<Polyline> polylines = new ArrayList<>();
 
     public OfflineMapManager(Context context, MapView mapView) {
         this.mapView = mapView;
         Configuration.getInstance().load(context, context.getSharedPreferences("osmdroid", Context.MODE_PRIVATE));
 
-        mapView.setTileSource(TileSourceFactory.MAPNIK);
+        File mapFile = new File(Environment.getExternalStorageDirectory().getAbsolutePath() + "/osmdroid/south-korea.map");
+        if (mapFile.exists()) {
+            mapView.setTileSource(new XYTileSource(
+                    "OfflineMap", 0, 18, 256, ".map", new String[]{}
+            ));
+        } else {
+            mapView.setTileSource(TileSourceFactory.MAPNIK); // 온라인 지도 사용
+        }
+
         mapView.setMultiTouchControls(true);
+
+        mapView.setUseDataConnection(true);
         mapView.getController().setZoom(15.0);
 
         myLocationOverlay = new MyLocationNewOverlay(new GpsMyLocationProvider(context), mapView);
@@ -40,7 +54,7 @@ public class OfflineMapManager {
             segment.addPoint(lastPoint);
             segment.addPoint(newPoint);
             mapView.getOverlays().add(segment);
-            polylines.add(segment);
+
         }
 
         routePoints.add(newPoint);
