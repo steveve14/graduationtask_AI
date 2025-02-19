@@ -25,7 +25,7 @@ import org.osmdroid.views.overlay.MapEventsOverlay;
 
 public class MainActivity extends AppCompatActivity {
     //define variables
-    TextView text1, text2, text3, ing, text4, text5, textAI;
+    TextView text1, text2, ing, text5, textAI;
     SensorManager manager;
     SensorEventListener listener;
     Button startbtn, startai;
@@ -36,7 +36,7 @@ public class MainActivity extends AppCompatActivity {
     float currentAcc, lastAcc, distance, effectiveAcc;
     float totaldistance;
 
-    float totalX, totalY, totalXs, totalYs, totalNot;
+    float totalX, totalY, totalNot;
     float totalZ, totalZs;
     String num, rZ, rZs;
 
@@ -44,10 +44,6 @@ public class MainActivity extends AppCompatActivity {
     boolean accel = false;
     boolean rotate = false;
     boolean pre = false;
-    final static int FREQ = 1;
-    int mOrientCount;
-    float azims;
-
     float totalheight, totalheight2 = 0;
     float th, ths;
 
@@ -55,7 +51,6 @@ public class MainActivity extends AppCompatActivity {
     float[] Rotate = new float[3];
     float[] Press = new float[3];
     float [] values1 = new float[3];
-    int T;
     float x, y, z, pz;
     float height, nowheight, disheight, changeheight, changeheight2, nowheight2, disheight2;
     float azim;
@@ -99,52 +94,52 @@ public class MainActivity extends AppCompatActivity {
         startai = findViewById(R.id.startai);
 
         startTime = 0;
-        //지도
-        mapView = findViewById(R.id.map);
-        btnMyLocation = findViewById(R.id.btnMyLocation);
-        offlineMapManager = new OfflineMapManager(this, mapView);
-        gpsTracker = new GpsTracker(this);
-
-        // GPS 데이터 업데이트 설정
-        gpsTracker.setLocationUpdateCallback((location, speed) -> {
-            GeoPoint geoPoint = new GeoPoint(location.getLatitude(), location.getLongitude());
-            offlineMapManager.updateLocation(geoPoint, speed);
-
-            // 자동 따라가기 모드가 켜져 있으면 지도 자동 이동
-            if (isFollowingLocation) {
-                mapView.getController().animateTo(geoPoint);
-            }
-        });
-
-        gpsTracker.startTracking();
-
-        // 현재 위치 버튼 클릭 시 자동 따라가기 활성화 및 지도 이동
-        btnMyLocation.setOnClickListener(v -> {
-            Location currentLocation = gpsTracker.getLastKnownLocation();
-            if (currentLocation != null) {
-                GeoPoint geoPoint = new GeoPoint(currentLocation.getLatitude(), currentLocation.getLongitude());
-                mapView.getController().animateTo(geoPoint);
-                mapView.getController().setZoom(18.0);
-                isFollowingLocation = true; // 자동 따라가기 활성화
-            }
-        });
-
-        // 사용자가 지도를 이동하면 자동 따라가기 해제
-        MapEventsOverlay mapEventsOverlay = new MapEventsOverlay(new MapEventsReceiver() {
-            @Override
-            public boolean singleTapConfirmedHelper(GeoPoint geoPoint) {
-                return false;
-            }
-
-            @Override
-            public boolean longPressHelper(GeoPoint geoPoint) {
-                isFollowingLocation = false; // 길게 누르면 자동 따라가기 해제
-                return false;
-            }
-        });
-        mapView.getOverlays().add(mapEventsOverlay);
-
-        //지도 끝
+//        //지도
+//        mapView = findViewById(R.id.map);
+//        btnMyLocation = findViewById(R.id.btnMyLocation);
+//        offlineMapManager = new OfflineMapManager(this, mapView);
+//        gpsTracker = new GpsTracker(this);
+//
+//        // GPS 데이터 업데이트 설정
+//        gpsTracker.setLocationUpdateCallback((location, speed) -> {
+//            GeoPoint geoPoint = new GeoPoint(location.getLatitude(), location.getLongitude());
+//            offlineMapManager.updateLocation(geoPoint, speed);
+//
+//            // 자동 따라가기 모드가 켜져 있으면 지도 자동 이동
+//            if (isFollowingLocation) {
+//                mapView.getController().animateTo(geoPoint);
+//            }
+//        });
+//
+//        gpsTracker.startTracking();
+//
+//        // 현재 위치 버튼 클릭 시 자동 따라가기 활성화 및 지도 이동
+//        btnMyLocation.setOnClickListener(v -> {
+//            Location currentLocation = gpsTracker.getLastKnownLocation();
+//            if (currentLocation != null) {
+//                GeoPoint geoPoint = new GeoPoint(currentLocation.getLatitude(), currentLocation.getLongitude());
+//                mapView.getController().animateTo(geoPoint);
+//                mapView.getController().setZoom(18.0);
+//                isFollowingLocation = true; // 자동 따라가기 활성화
+//            }
+//        });
+//
+//        // 사용자가 지도를 이동하면 자동 따라가기 해제
+//        MapEventsOverlay mapEventsOverlay = new MapEventsOverlay(new MapEventsReceiver() {
+//            @Override
+//            public boolean singleTapConfirmedHelper(GeoPoint geoPoint) {
+//                return false;
+//            }
+//
+//            @Override
+//            public boolean longPressHelper(GeoPoint geoPoint) {
+//                isFollowingLocation = false; // 길게 누르면 자동 따라가기 해제
+//                return false;
+//            }
+//        });
+//        mapView.getOverlays().add(mapEventsOverlay);
+//
+//        //지도 끝
         manager = (SensorManager) getSystemService(SENSOR_SERVICE); //센서관리객체설정
         Sensor accelrometer = manager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         Sensor Rotation = manager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
@@ -217,11 +212,6 @@ public class MainActivity extends AppCompatActivity {
                         carbonEmissions += (distance / 1000) * 50; // gCO₂/km
                     }
 
-                    // ✅ 출력 전에 NaN 여부 확인
-                    if (Float.isNaN(speed_km_s)) {
-                        speed_km_s = 0;
-                    }
-
                     // ✅ km/s 변환 (distance는 m 단위)
                     speed_km_s = (distance / elapsedTime) * 0.001f;
 
@@ -249,47 +239,6 @@ public class MainActivity extends AppCompatActivity {
 
                     SensorManager.getRotationMatrix(Rs,Is,Accel,Rotate);
                     SensorManager.getOrientation(Rs, values1);
-
-                    //방위값(라디언단위) -> 각도단위로 변경
-                    azim = (float) Math.toDegrees(values1[0]);
-                    mOrientCount++;
-                    T = mOrientCount / FREQ ;
-
-                    if (T == 1){
-                        azims = azim;
-                    }
-
-//                    float ro = azim-azims;
-//                    text3.setText("방향 측정 중.. "+ro+"\n");
-//                    if((0>=ro && ro>-45) || (0<=ro && ro<45)) {
-//                        text3.setText("당신은 앞을 향했습니다." + "\n\n");
-//                        totalY = 0;
-//                        totalY += totaldistance - totalX - totalXs - totalYs;
-//
-//                    } else if((ro>=45 && ro<135)||(ro<=-225 && ro>-315)) {
-//                        text3.setText("당신은 오른쪽을 향했습니다." + "\n\n");
-//                        totalX = 0;
-//                        totalX += totaldistance - totalY - totalXs - totalYs;
-//
-//                    } else if((ro<=-135 && ro>-225)||(ro>=135 && ro<225)){
-//                        text3.setText("당신은 뒤로 향했습니다."+"\n\n");
-//                        totalYs = 0;
-//                        totalYs += totaldistance - totalX - totalXs - totalY;
-//
-//                    } else if((ro<=-45 && ro>-135)||(ro>=225 && ro<315) ){
-//                        text3.setText("당신은 왼쪽을 향했습니다."+"\n\n");
-//                        totalXs = 0;
-//                        totalXs += totaldistance - totalX - totalYs - totalY;
-//                    }
-//
-//                    String TY = String.format("%.2f", totalY/100000000);
-//                    text3.append("앞쪽으로"+TY+"m를 갔습니다."+"\n");
-//                    String TX = String.format("%.2f", totalX/100000000);
-//                    text3.append("오른쪽으로"+TX+"m를 갔습니다."+"\n");
-//                    String TYs = String.format("%.2f", totalYs/100000000);
-//                    text3.append("뒤쪽으로"+TYs+"m를 갔습니다."+"\n");
-//                    String TXs = String.format("%.2f", totalXs/100000000);
-//                    text3.append("왼쪽으로"+TXs+"m를 갔습니다."+"\n\n");
 
                     text5.setText("걷기,제자리 이동거리: " + String.format("%.2f", walkDistance) + " m\n");
                     text5.append("자전거 이동거리: " + String.format("%.2f", bikeDistance) + " m\n");
@@ -322,24 +271,19 @@ public class MainActivity extends AppCompatActivity {
                     totalheight2 += disheight2;
                     ths = (float) (Math.round(totalheight2*100)/100.0);
 
+                    if(th>=0.25){
+                        totalZ = 0;
+                        totalZ += totalheight2 - totalZs;
 
+                    }else if(th<=-0.25){
+                        totalZs = 0;
+                        totalZs += totalheight2 - totalZ;
 
-//                    text4.setText("고도 측정 중... \n\n");
-//                    if(th>=0.25){
-//                        text4.setText("위쪽을 향했습니다. \n\n");
-//                        totalZ = 0;
-//                        totalZ += totalheight2 - totalZs;
-//
-//                    }else if(th<=-0.25){
-//                        text4.setText("아래쪽을 향했습니다. \n\n");
-//                        totalZs = 0;
-//                        totalZs += totalheight2 - totalZ;
-//
-//                    }else{
-//                        text4.setText("위쪽과 아래쪽으로는 이동하지 않았습니다. \n\n");
-//                        totalNot = 0;
-//                        totalNot += totalheight2 - totalZs - totalZ;
-//                    }
+                    }else{
+                        totalNot = 0;
+                        totalNot += totalheight2 - totalZs - totalZ;
+                    }
+
                     totalNot = (float) Math.round(totalNot*100/100.0);
                     rZ = String.format("%.2f", totalZ/2);
                     rZs= String.format("%.2f", totalZs/2);
@@ -399,18 +343,15 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void reset (){
-        mOrientCount = 0;
         totaldistance=0;
         totalX = 0;
-        totalXs = 0;
         totalY = 0;
-        totalYs = 0;
         totalheight = 0;
         totalheight2 = 0;
         totalZ = 0;
         totalZs = 0;
         totalNot = 0;
-        speed_km_s = 0; // ✅ 속도 초기화
+        speed_km_s = 0;
         walkDistance = 0;
         bikeDistance = 0;
         busDistance = 0;

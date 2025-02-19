@@ -9,7 +9,7 @@
     <TextView
         android:id="@+id/textView"
         android:layout_width="match_parent"
-        android:layout_height="110dp"
+        android:layout_height="wrap_content"
         android:gravity="center"
         android:paddingTop="10dp"
         android:text="AI 태스트"
@@ -30,7 +30,7 @@
     <TextView
         android:id="@+id/textAP"
         android:layout_width="match_parent"
-        android:layout_height="100dp"
+        android:layout_height="140dp"
         android:gravity="center"
         android:text=""
         android:textAlignment="center"
@@ -39,7 +39,7 @@
     <TextView
         android:id="@+id/textBTS"
         android:layout_width="match_parent"
-        android:layout_height="100dp"
+        android:layout_height="80dp"
         android:gravity="center"
         android:paddingTop="15dp"
         android:text=""
@@ -50,7 +50,7 @@
     <TextView
         android:id="@+id/textGPS"
         android:layout_width="match_parent"
-        android:layout_height="100dp"
+        android:layout_height="90dp"
         android:gravity="center"
         android:text=""
         android:textAlignment="center"
@@ -60,22 +60,31 @@
     <TextView
         android:id="@+id/textIMU"
         android:layout_width="match_parent"
-        android:layout_height="100dp"
+        android:layout_height="260dp"
         android:gravity="center"
         android:text=""
         android:textAlignment="center"
-        android:textSize="20sp"
+        android:textSize="16sp"
         />
 
     <TextView
-        android:id="@+id/textViewAI"
+        android:id="@+id/textViewProcessed"
         android:layout_width="match_parent"
         android:layout_height="60dp"
         android:gravity="center"
         android:text=""
         android:textAlignment="center"
-        android:textSize="20sp"
+        android:textSize="18sp"
+        />
 
+    <TextView
+        android:id="@+id/textViewAI"
+        android:layout_width="match_parent"
+        android:layout_height="120dp"
+        android:gravity="center"
+        android:text=""
+        android:textAlignment="center"
+        android:textSize="18sp"
         />
 
     <Button
