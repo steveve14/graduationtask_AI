@@ -57,15 +57,26 @@
         android:textSize="9sp"
 
         />
-    <TextView
-        android:id="@+id/textIMU"
+
+    <HorizontalScrollView
         android:layout_width="match_parent"
-        android:layout_height="260dp"
-        android:gravity="center"
-        android:text=""
-        android:textAlignment="center"
-        android:textSize="16sp"
-        />
+        android:layout_height="245dp">
+
+        <ScrollView
+            android:layout_width="wrap_content"
+            android:layout_height="260dp">
+
+            <TextView
+                android:id="@+id/textIMU"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:scrollHorizontally="true"
+                android:text=""
+                android:textAlignment="center"
+                android:textSize="10sp" />
+        </ScrollView>
+    </HorizontalScrollView>
 
     <TextView
         android:id="@+id/textViewProcessed"

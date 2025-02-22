@@ -148,19 +148,24 @@ public class SensorDataCollector extends AppCompatActivity {
                 handler.postDelayed(this, PROCESS_INTERVAL_01);
             }
         }, PROCESS_INTERVAL_01);
-
-        // 60초마다 AP, BTS, GPS, AI 데이터 처리
+        ExecutorService executor = Executors.newSingleThreadExecutor();
         handler.postDelayed(new Runnable() {
             @Override
             public void run() {
                 textViewProcessed.setText("");
-                processAPData();
-                processBTSData();
-                processGPSData();
-                processAI();
-                handler.postDelayed(this, PROCESS_INTERVAL_60);
+                executor.execute(() -> {
+                    processAPData();
+                    processBTSData();
+                    processGPSData();
+
+                    handler.post(() -> {
+                        processAI();
+                        handler.postDelayed(this, PROCESS_INTERVAL_60);
+                    });
+                });
             }
         }, PROCESS_INTERVAL_60);
+
 
         // 별도 IMU 누적 수집 사이클 시작 (1분 주기)
         startIMUAccumulationCycle();
@@ -402,8 +407,6 @@ public class SensorDataCollector extends AppCompatActivity {
                     data.put("linear_accel.z", linear[2]);
 
                     addData(imuDataList, data, "IMU Accumulated");
-
-                    textIMU.setText("IMU 누적 데이터 수: " + imuDataList.size());
                 }
 
                 if (System.currentTimeMillis() - startTime < (long) PROCESS_INTERVAL_60) {
@@ -419,13 +422,14 @@ public class SensorDataCollector extends AppCompatActivity {
     // IMU 데이터 처리 (누적 데이터 기반)
     private void processIMUData() {
         if (!imuDataList.isEmpty()) {
-            Map<String, double[][]> processedData = IMUProcessor.preImu(imuDataList);
-            textViewProcessed.append(", IMU:" + processedData.size());
-            for (Map.Entry<String, double[][]> entry : processedData.entrySet()) {
-                Map<String, Object> dataMap = new HashMap<>();
-                dataMap.put(entry.getKey(), entry.getValue());
-                addData(imuProcessedDataList, dataMap, "IMU Processed");
+            List<Map<String, Object>> processedData = IMUProcessor.preImu(imuDataList);
+
+            StringBuilder dataText = new StringBuilder("Processed IMU Data:\n");
+            for (Map<String, Object> entry : processedData) {
+                addData(imuProcessedDataList, entry, "IMU Processed");
+                dataText.append(entry.toString()).append("\n");
             }
+            runOnUiThread(() -> textIMU.setText(dataText.toString()));
         }
     }
 
@@ -507,9 +511,7 @@ public class SensorDataCollector extends AppCompatActivity {
             Log.e("AI", "AP feature vector is null");
             return null;
         }
-        for (int i = 0; i < 60; i++) { // 60개로 복제
-            System.arraycopy(apFeatures, 0, inputVector[i], 0, 60);
-        }
+        replicateSingleFeatureToMultiple(apFeatures, inputVector, 0, 60);
 
         // **BTS 데이터 변환 (12개 → 60개, 1개당 5개 복제)**
         float[][] btsFeatures = extractFeatureVectorFromList(btsProcessedDataList, 12, 5);
@@ -517,7 +519,7 @@ public class SensorDataCollector extends AppCompatActivity {
             Log.e("AI", "BTS feature vector is null");
             return null;
         }
-        replicateData(btsFeatures, inputVector, 60, 120, 5); // 12개 데이터를 5개씩 복제하여 60개로 확장
+        replicateData(btsFeatures, inputVector, 60, 120, 5);
 
         // **GPS 데이터 변환 (12개 → 60개, 1개당 5개 복제)**
         float[][] gpsFeatures = extractFeatureVectorFromList(gpsProcessedDataList, 12, 5);
@@ -525,7 +527,7 @@ public class SensorDataCollector extends AppCompatActivity {
             Log.e("AI", "GPS feature vector is null");
             return null;
         }
-        replicateData(gpsFeatures, inputVector, 120, 180, 5); // 12개 데이터를 5개씩 복제하여 60개로 확장
+        replicateData(gpsFeatures, inputVector, 120, 180, 5);
 
         // **IMU 데이터 변환 (60개 → 60개, 1대1 매칭)**
         float[][] imuFeatures = extractFeatureVectorFromList(imuProcessedDataList, 60, 1);
@@ -533,12 +535,20 @@ public class SensorDataCollector extends AppCompatActivity {
             Log.e("AI", "IMU feature vector is null");
             return null;
         }
-        for (int i = 0; i < 160; i++) { // 1대1 매칭
+        for (int i = 0; i < 60; i++) {
             System.arraycopy(imuFeatures[i], 0, inputVector[i + 180], 0, 60);
         }
 
         return inputVector;
     }
+
+    // Helper method to replicate a single feature into multiple positions
+    private void replicateSingleFeatureToMultiple(float[] feature, float[][][] inputVector, int startIndex, int replicationCount) {
+        for (int i = startIndex; i < replicationCount; i++) {
+            System.arraycopy(feature, 0, inputVector[i], 0, feature.length);
+        }
+    }
+
     private void replicateData(float[][] source, float[][][] target, int start, int end, int factor) {
         int index = 0;
         for (int i = 0; i < source.length; i++) {
