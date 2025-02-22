@@ -1,6 +1,7 @@
 package com.example.movedistance;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.hardware.Sensor;
@@ -93,6 +94,7 @@ public class SensorDataCollector extends AppCompatActivity {
         fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
 
         requestPermissions();
+        processAI();
     }
 
     private void requestPermissions() {
@@ -197,13 +199,12 @@ public class SensorDataCollector extends AppCompatActivity {
                         }
                         Map<String, Object> data = new HashMap<>();
                         data.put("timestamp", timestamp);
-                        data.put("wifibssid", scanResult.BSSID);
+                        data.put("bssid", scanResult.BSSID);
                         data.put("ssid", ssid);
                         data.put("level", scanResult.level);
                         data.put("frequency", scanResult.frequency);
                         data.put("capabilities", scanResult.capabilities);
                         addData(apDataList, data, "WiFi AP");
-                        textAP.setText(data.toString());
                     }
                 }
             } catch (SecurityException e) {
@@ -217,10 +218,12 @@ public class SensorDataCollector extends AppCompatActivity {
         if (!apDataList.isEmpty()) {
             long startTimestamp = System.currentTimeMillis() - (60 * 1000);
             List<Map<String, Object>> processedData = APProcessor.processAP(apDataList, startTimestamp);
-            textViewProcessed.append("AP:" + processedData.size());
+            StringBuilder dataText = new StringBuilder("Processed AP Data:\n");
             for (Map<String, Object> entry : processedData) {
                 addData(apProcessedDataList, entry, "WiFi Processed");
+                dataText.append(entry.toString()).append("\n");
             }
+            runOnUiThread(() -> textAP.setText(dataText.toString()));
         }
     }
 
@@ -239,7 +242,6 @@ public class SensorDataCollector extends AppCompatActivity {
                             data.put("ci", cellIdentity.getCi());
                             data.put("pci", cellIdentity.getPci());
                             addData(btsDataList, data, "BTS Raw");
-                            textBTS.setText(data.toString());
                         }
                     }
                 }
@@ -254,10 +256,13 @@ public class SensorDataCollector extends AppCompatActivity {
         if (!btsDataList.isEmpty()) {
             long startTimestamp = System.currentTimeMillis() - (60 * 1000);
             List<Map<String, Object>> processedData = BTSProcessor.processBTS(btsDataList, startTimestamp);
-            textViewProcessed.append(", BTS:" + processedData.size() + "\n");
+
+            StringBuilder dataText = new StringBuilder("Processed BTS Data:\n");
             for (Map<String, Object> entry : processedData) {
                 addData(btsProcessedDataList, entry, "BTS Processed");
+                dataText.append(entry.toString()).append("\n");
             }
+            runOnUiThread(() -> textBTS.setText(dataText.toString()));
         }
     }
 
@@ -272,7 +277,6 @@ public class SensorDataCollector extends AppCompatActivity {
                     data.put("latitude", location.getLatitude());
                     data.put("longitude", location.getLongitude());
                     addData(gpsDataList, data, "GPS Raw");
-                    textGPS.setText(data.toString());
                 }
             });
         } else {
@@ -285,10 +289,13 @@ public class SensorDataCollector extends AppCompatActivity {
         if (!gpsDataList.isEmpty()) {
             long startTimestamp = System.currentTimeMillis() - (60 * 1000);
             List<Map<String, Object>> processedData = GPSProcessor.processGPS(gpsDataList, startTimestamp);
-            textViewProcessed.append("GPS:" + processedData.size());
+
+            StringBuilder dataText = new StringBuilder("Processed GPS Data:\n");
             for (Map<String, Object> entry : processedData) {
                 addData(gpsProcessedDataList, entry, "GPS Processed");
+                dataText.append(entry.toString()).append("\n");
             }
+            runOnUiThread(() -> textGPS.setText(dataText.toString()));
         }
     }
 
@@ -333,11 +340,12 @@ public class SensorDataCollector extends AppCompatActivity {
         sensorManager.registerListener(accumulationListener, gravitySensor, SensorManager.SENSOR_DELAY_GAME);
         sensorManager.registerListener(accumulationListener, linearAccelSensor, SensorManager.SENSOR_DELAY_GAME);
 
-        final long accumulationDuration = PROCESS_INTERVAL_60; // 60초 누적
+        // 60초 누적
         final long startTime = System.currentTimeMillis();
 
         // 10ms 간격으로 센서 데이터를 기록
         handler.postDelayed(new Runnable() {
+            @SuppressLint("SetTextI18n")
             @Override
             public void run() {
                 if (sensorValues.containsKey(Sensor.TYPE_ACCELEROMETER) &&
@@ -352,16 +360,19 @@ public class SensorDataCollector extends AppCompatActivity {
                     data.put("timestamp", System.currentTimeMillis());
 
                     float[] accel = sensorValues.get(Sensor.TYPE_ACCELEROMETER);
+                    assert accel != null;
                     data.put("accel.x", accel[0]);
                     data.put("accel.y", accel[1]);
                     data.put("accel.z", accel[2]);
 
                     float[] gyro = sensorValues.get(Sensor.TYPE_GYROSCOPE);
+                    assert gyro != null;
                     data.put("gyro.x", gyro[0]);
                     data.put("gyro.y", gyro[1]);
                     data.put("gyro.z", gyro[2]);
 
                     float[] mag = sensorValues.get(Sensor.TYPE_MAGNETIC_FIELD);
+                    assert mag != null;
                     data.put("mag.x", mag[0]);
                     data.put("mag.y", mag[1]);
                     data.put("mag.z", mag[2]);
@@ -375,23 +386,27 @@ public class SensorDataCollector extends AppCompatActivity {
                     data.put("rot.z", quat[3]);
 
                     float[] pressure = sensorValues.get(Sensor.TYPE_PRESSURE);
+                    assert pressure != null;
                     data.put("pressure.x", pressure[0]);
 
                     float[] gravity = sensorValues.get(Sensor.TYPE_GRAVITY);
+                    assert gravity != null;
                     data.put("gravity.x", gravity[0]);
                     data.put("gravity.y", gravity[1]);
                     data.put("gravity.z", gravity[2]);
 
                     float[] linear = sensorValues.get(Sensor.TYPE_LINEAR_ACCELERATION);
+                    assert linear != null;
                     data.put("linear_accel.x", linear[0]);
                     data.put("linear_accel.y", linear[1]);
                     data.put("linear_accel.z", linear[2]);
 
                     addData(imuDataList, data, "IMU Accumulated");
+
                     textIMU.setText("IMU 누적 데이터 수: " + imuDataList.size());
                 }
 
-                if (System.currentTimeMillis() - startTime < accumulationDuration) {
+                if (System.currentTimeMillis() - startTime < (long) PROCESS_INTERVAL_60) {
                     handler.postDelayed(this, 10);
                 } else {
                     sensorManager.unregisterListener(accumulationListener);
@@ -404,8 +419,7 @@ public class SensorDataCollector extends AppCompatActivity {
     // IMU 데이터 처리 (누적 데이터 기반)
     private void processIMUData() {
         if (!imuDataList.isEmpty()) {
-            long startTimestamp = System.currentTimeMillis() - (60 * 1000);
-            Map<String, double[][]> processedData = IMUProcessor.processIMU(imuDataList);
+            Map<String, double[][]> processedData = IMUProcessor.preImu(imuDataList);
             textViewProcessed.append(", IMU:" + processedData.size());
             for (Map.Entry<String, double[][]> entry : processedData.entrySet()) {
                 Map<String, Object> dataMap = new HashMap<>();
@@ -416,10 +430,10 @@ public class SensorDataCollector extends AppCompatActivity {
     }
 
     // AI 처리 - 여기서 AP, BTS, GPS, IMU 순서로 병합된 피처 벡터를 AI 모델의 입력으로 사용합니다.
+    @SuppressLint("SetTextI18n")
     private void processAI() {
         executorService.execute(() -> {
             if (pyTorchHelper == null) {
-                Log.e("AI", "PyTorchHelper 초기화");
                 pyTorchHelper = new PyTorchHelper(this);
                 runOnUiThread(() -> textAIResult.setText("PyTorchHelper 초기화 완료"));
             }
@@ -427,64 +441,116 @@ public class SensorDataCollector extends AppCompatActivity {
             if (notstartAI) {
                 notstartAI = false;
             } else {
-                // AP, BTS, GPS, IMU 처리된 데이터 병합하여 하나의 피처 벡터 생성
-                float[] inputFeatureVector = getMergedFeatureVector();
+                float[][][] inputFeatureVector = getProcessedFeatureVector();
                 if (inputFeatureVector == null) {
-                    Log.e("AI", "합쳐진 피처 벡터 생성 실패");
+                    Log.e("AI", "입력 벡터 생성 실패");
                     return;
                 }
-                // Tensor 생성 (여기서는 단일 시간 창으로 가정)
-                Tensor inputTensor = Tensor.fromBlob(inputFeatureVector, new long[]{1, 1, inputFeatureVector.length});
+
+                // 3D 데이터를 1D로 변환하여 Tensor에 입력
+                float[] flattenedVector = new float[340 * 60];
+                int index = 0;
+                for (float[][] step : inputFeatureVector) {
+                    for (float[] feature : step) {
+                        System.arraycopy(feature, 0, flattenedVector, index, feature.length);
+                        index += feature.length;
+                    }
+                }
+
+                Tensor inputTensor = Tensor.fromBlob(flattenedVector, new long[]{1, 340, 60});
                 float[] outputData = pyTorchHelper.predict(inputTensor);
+
                 Log.d("PyTorch Output", "Result: " + Arrays.toString(outputData));
-                runOnUiThread(() -> textAIResult.setText(Arrays.toString(outputData)));
+                runOnUiThread(() -> textAIResult.setText(String.valueOf(outputData[0])));
             }
         });
     }
 
-    /**
-     * AP, BTS, GPS, IMU 각각의 처리된 데이터 리스트에서 가장 최근의 데이터를 가져와
-     * (각각 Map<String, Object> 형태로 저장됨)
-     * 그 안에 저장된 double[][](feature 행렬)의 첫 행을 추출한 후, float 배열로 변환하여 순서대로 병합합니다.
-     */
-    private float[] getMergedFeatureVector() {
-        if (apProcessedDataList.isEmpty() || btsProcessedDataList.isEmpty()
-                || gpsProcessedDataList.isEmpty() || imuProcessedDataList.isEmpty()) {
-            Log.e("AI", "Processed data 중 일부가 없습니다.");
-            return null;
+    private float[][] extractFeatureVectorFromList(List<Map<String, Object>> list, int originalSize, int expansionFactor) {
+        if (list.size() < originalSize) return null;
+
+        float[][] expandedData = new float[originalSize * expansionFactor][];
+        int index = 0;
+        for (int i = 0; i < originalSize; i++) {
+            float[] vector = extractFeatureVectorFromMap(list.get(i));
+            if (vector == null) return null;
+            for (int j = 0; j < expansionFactor; j++) {
+                expandedData[index++] = vector;
+            }
         }
-        Map<String, Object> apMap = apProcessedDataList.get(apProcessedDataList.size() - 1);
-        Map<String, Object> btsMap = btsProcessedDataList.get(btsProcessedDataList.size() - 1);
-        Map<String, Object> gpsMap = gpsProcessedDataList.get(gpsProcessedDataList.size() - 1);
-        Map<String, Object> imuMap = imuProcessedDataList.get(imuProcessedDataList.size() - 1);
-
-        float[] apFeatures = extractFeatureVectorFromMap(apMap);
-        float[] btsFeatures = extractFeatureVectorFromMap(btsMap);
-        float[] gpsFeatures = extractFeatureVectorFromMap(gpsMap);
-        float[] imuFeatures = extractFeatureVectorFromMap(imuMap);
-
-        if (apFeatures == null || btsFeatures == null || gpsFeatures == null || imuFeatures == null) {
-            Log.e("AI", "Some sensor features are null");
-            return null;
-        }
-
-        int totalLength = apFeatures.length + btsFeatures.length + gpsFeatures.length + imuFeatures.length;
-        float[] merged = new float[totalLength];
-        int pos = 0;
-        System.arraycopy(apFeatures, 0, merged, pos, apFeatures.length);
-        pos += apFeatures.length;
-        System.arraycopy(btsFeatures, 0, merged, pos, btsFeatures.length);
-        pos += btsFeatures.length;
-        System.arraycopy(gpsFeatures, 0, merged, pos, gpsFeatures.length);
-        pos += gpsFeatures.length;
-        System.arraycopy(imuFeatures, 0, merged, pos, imuFeatures.length);
-        return merged;
+        return expandedData;
     }
 
-    /**
-     * Map 안에 저장된 feature 행렬(double[][])의 첫 행을 추출하여 float[]로 변환합니다.
-     * Map은 단일 entry를 가지고 있다고 가정합니다.
-     */
+    private float[][][] getProcessedFeatureVector() {
+        if (apProcessedDataList.isEmpty()) {
+            Log.e("AI", "AP 데이터가 없습니다.");
+            return null;
+        }
+        if (btsProcessedDataList.isEmpty()) {
+            Log.e("AI", "BTS 데이터가 없습니다.");
+            return null;
+        }
+        if (gpsProcessedDataList.isEmpty()) {
+            Log.e("AI", "GPS 데이터가 없습니다.");
+            return null;
+        }
+        if (imuProcessedDataList.isEmpty()) {
+            Log.e("AI", "IMU 데이터가 없습니다.");
+            return null;
+        }
+
+        float[][][] inputVector = new float[340][60][1];
+
+        // **AP 데이터 변환 (1개 → 60개로 복제)**
+        float[] apFeatures = extractFeatureVectorFromMap(apProcessedDataList.get(apProcessedDataList.size() - 1));
+        if (apFeatures == null) {
+            Log.e("AI", "AP feature vector is null");
+            return null;
+        }
+        for (int i = 0; i < 60; i++) { // 60개로 복제
+            System.arraycopy(apFeatures, 0, inputVector[i], 0, 60);
+        }
+
+        // **BTS 데이터 변환 (12개 → 60개, 1개당 5개 복제)**
+        float[][] btsFeatures = extractFeatureVectorFromList(btsProcessedDataList, 12, 5);
+        if (btsFeatures == null) {
+            Log.e("AI", "BTS feature vector is null");
+            return null;
+        }
+        replicateData(btsFeatures, inputVector, 60, 120, 5); // 12개 데이터를 5개씩 복제하여 60개로 확장
+
+        // **GPS 데이터 변환 (12개 → 60개, 1개당 5개 복제)**
+        float[][] gpsFeatures = extractFeatureVectorFromList(gpsProcessedDataList, 12, 5);
+        if (gpsFeatures == null) {
+            Log.e("AI", "GPS feature vector is null");
+            return null;
+        }
+        replicateData(gpsFeatures, inputVector, 120, 180, 5); // 12개 데이터를 5개씩 복제하여 60개로 확장
+
+        // **IMU 데이터 변환 (60개 → 60개, 1대1 매칭)**
+        float[][] imuFeatures = extractFeatureVectorFromList(imuProcessedDataList, 60, 1);
+        if (imuFeatures == null) {
+            Log.e("AI", "IMU feature vector is null");
+            return null;
+        }
+        for (int i = 0; i < 160; i++) { // 1대1 매칭
+            System.arraycopy(imuFeatures[i], 0, inputVector[i + 180], 0, 60);
+        }
+
+        return inputVector;
+    }
+    private void replicateData(float[][] source, float[][][] target, int start, int end, int factor) {
+        int index = 0;
+        for (int i = 0; i < source.length; i++) {
+            for (int j = 0; j < factor; j++) { // 각 데이터를 factor배 반복
+                if (index >= end - start) break;
+                System.arraycopy(source[i], 0, target[start + index], 0, 60);
+                index++;
+            }
+        }
+    }
+
+
     private float[] extractFeatureVectorFromMap(Map<String, Object> map) {
         if (map == null || map.isEmpty()) return null;
         Object value = map.values().iterator().next();

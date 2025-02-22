@@ -46,6 +46,7 @@ dependencies {
     //AI 작동
     implementation("org.pytorch:pytorch_android:1.10.0")
     implementation("org.pytorch:pytorch_android_torchvision:1.10.0")
+
     //지도
     implementation("org.osmdroid:osmdroid-android:6.1.20")
     implementation("com.github.MKergall:osmbonuspack:6.9.0")

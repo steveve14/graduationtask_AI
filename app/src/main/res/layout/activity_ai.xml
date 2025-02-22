@@ -7,7 +7,7 @@
     android:orientation="vertical">
 
     <TextView
-        android:id="@+id/textView"
+        android:id="@+id/text"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center"
@@ -18,7 +18,7 @@
         tools:ignore="HardcodedText" />
 
     <TextView
-        android:id="@+id/ing"
+        android:id="@+id/textViewAI"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center"
@@ -30,31 +30,31 @@
     <TextView
         android:id="@+id/textAP"
         android:layout_width="match_parent"
-        android:layout_height="140dp"
+        android:layout_height="30dp"
         android:gravity="center"
         android:text=""
         android:textAlignment="center"
-        android:textSize="23sp" />
+        android:textSize="10sp" />
 
     <TextView
         android:id="@+id/textBTS"
         android:layout_width="match_parent"
-        android:layout_height="80dp"
+        android:layout_height="180dp"
         android:gravity="center"
         android:paddingTop="15dp"
         android:text=""
 
         android:textAlignment="center"
-        android:textSize="20sp" />
+        android:textSize="10sp" />
 
     <TextView
         android:id="@+id/textGPS"
         android:layout_width="match_parent"
-        android:layout_height="90dp"
+        android:layout_height="190dp"
         android:gravity="center"
         android:text=""
         android:textAlignment="center"
-        android:textSize="20sp"
+        android:textSize="9sp"
 
         />
     <TextView
@@ -71,16 +71,6 @@
         android:id="@+id/textViewProcessed"
         android:layout_width="match_parent"
         android:layout_height="60dp"
-        android:gravity="center"
-        android:text=""
-        android:textAlignment="center"
-        android:textSize="18sp"
-        />
-
-    <TextView
-        android:id="@+id/textViewAI"
-        android:layout_width="match_parent"
-        android:layout_height="120dp"
         android:gravity="center"
         android:text=""
         android:textAlignment="center"

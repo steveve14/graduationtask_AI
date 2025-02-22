@@ -1,8 +1,8 @@
 package com.example.movedistance;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -23,14 +23,14 @@ public class APProcessor {
                 for (Map<String, Object> record : apData) {
                     long timestamp = (long) record.get("timestamp");
                     if (timestamp >= windowStart && timestamp < windowEnd) {
-                        uniqueBSSIDs.add((String) record.getOrDefault("wifibssid", "N/A"));
+                        uniqueBSSIDs.add((String) record.getOrDefault("bssid", "N/A"));
                     }
                 }
 
                 int wifiCount = uniqueBSSIDs.size();
                 if (wifiCount > 0) {
                     hasData = true; // wifi_cnt가 0보다 큰 값이 하나라도 있으면 true 설정
-                    Map<String, Object> result = new HashMap<>();
+                    Map<String, Object> result = new LinkedHashMap<>(); // 순서 보장
                     result.put("timestamp", curTime);
                     result.put("wifi_cnt", wifiCount); // 고유한 AP 개수
                     results.add(result);
@@ -40,7 +40,7 @@ public class APProcessor {
 
         // ✅ 모든 결과가 비어 있으면 "wifi_cnt: 0" 한 번만 추가
         if (!hasData) {
-            Map<String, Object> emptyResult = new HashMap<>();
+            Map<String, Object> emptyResult = new LinkedHashMap<>(); // 순서 보장
             emptyResult.put("timestamp", startTimestamp);
             emptyResult.put("wifi_cnt", 0);
             results.add(emptyResult);
