@@ -492,103 +492,63 @@ public class SensorDataCollector extends AppCompatActivity {
             return null;
         }
 
-        float[][][] inputVector = new float[340][60][1];
+        float[][][] inputVector = new float[1][340][60];
 
         // **AP 데이터 변환 (1개 → 60개로 복제)**
         Log.d("AI", "AP 데이터 리스트 크기: " + apProcessedDataList.size());
         List<Map<String, Object>> sortedAPDataList = sortAndRemoveTimestamp(apProcessedDataList);
-
         float[] apFeatures = extractFeatureVectorFromMap(sortedAPDataList.get(sortedAPDataList.size() - 1));
-        if (apFeatures == null) {
-            Log.e("AI", "AP feature vector is null");
+        if (apFeatures == null || apFeatures.length < 60) {
+            Log.e("AI", "AP feature vector is null or too short");
             return null;
         }
         Log.d("AI", "AP feature vector 크기: " + apFeatures.length);
-        replicateSingleFeatureToMultiple(apFeatures, inputVector, 0, 60);
+        for (int i = 0; i < Math.min(60, apFeatures.length); i++) {
+            inputVector[0][0][i] = apFeatures[i];
+        }
 
         // **BTS 데이터 변환 (12개 → 60개, 1개당 5개 복제)**
-        List<Map<String, Object>> sortedbtsDataList = sortAndRemoveTimestamp(btsProcessedDataList);
-        float[][] btsFeatures = extractFeatureVectorFromList(sortedbtsDataList, 12, 5);
-        if (btsFeatures == null) {
-            Log.e("AI", "BTS feature vector is null");
+        List<Map<String, Object>> sortedBTSDataList = sortAndRemoveTimestamp(btsProcessedDataList);
+        float[][] btsFeatures = extractFeatureVectorFromList(sortedBTSDataList, 12, 5);
+        if (btsFeatures == null || btsFeatures.length < 5) {
+            Log.e("AI", "BTS feature vector is null or too short");
             return null;
         }
         Log.d("AI", "BTS feature vector 크기: " + btsFeatures.length + " x " + (btsFeatures.length > 0 ? btsFeatures[0].length : 0));
-
-        // 복제 실행 (수정된 함수 사용)
-        replicateData(btsFeatures, inputVector, 60, 120, 5);
+        for (int col = 1; col <= 5; col++) {
+            System.arraycopy(btsFeatures[col - 1], 0, inputVector[0][col], 0, Math.min(60, btsFeatures[col - 1].length));
+        }
 
         // **GPS 데이터 변환 (12개 → 60개, 1개당 5개 복제)**
         Log.d("AI", "GPS 데이터 리스트 크기: " + gpsProcessedDataList.size());
         List<Map<String, Object>> sortedGPSDataList = sortAndRemoveTimestamp(gpsProcessedDataList);
         float[][] gpsFeatures = extractFeatureVectorFromList(sortedGPSDataList, 12, 5);
-        if (gpsFeatures == null) {
-            Log.e("AI", "GPS feature vector is null");
+        if (gpsFeatures == null || gpsFeatures.length < 4) {
+            Log.e("AI", "GPS feature vector is null or too short");
             return null;
         }
         Log.d("AI", "GPS feature vector 크기: " + gpsFeatures.length + " x " + (gpsFeatures.length > 0 ? gpsFeatures[0].length : 0));
-        replicateData(gpsFeatures, inputVector, 120, 180, 5);
+        for (int col = 6; col <= 9; col++) {
+            System.arraycopy(gpsFeatures[col - 6], 0, inputVector[0][col], 0, Math.min(60, gpsFeatures[col - 6].length));
+        }
 
         // **IMU 데이터 변환 (60개 → 60개, 1대1 매칭)**
         Log.d("AI", "IMU 데이터 리스트 크기: " + imuProcessedDataList.size());
         List<Map<String, Object>> sortedIMUDataList = sortAndRemoveTimestamp(imuProcessedDataList);
         float[][] imuFeatures = extractFeatureVectorFromList(adjustImuDataList(sortedIMUDataList, 60), 60, 1);
-        if (imuFeatures == null) {
-            Log.e("AI", "IMU feature vector is null");
+        if (imuFeatures == null || imuFeatures.length < 330) {
+            Log.e("AI", "IMU feature vector is null or too short");
             return null;
         }
-
         Log.d("AI", "IMU feature vector 크기: " + imuFeatures.length + " x " + (imuFeatures.length > 0 ? imuFeatures[0].length : 0));
+        for (int col = 10; col <= 339; col++) {
+            System.arraycopy(imuFeatures[col - 10], 0, inputVector[0][col], 0, Math.min(60, imuFeatures[col - 10].length));
+        }
 
         // 최종 입력 벡터 크기 확인
         Log.d("AI", "최종 입력 벡터 크기: " + inputVector.length + " x " + inputVector[0].length + " x " + inputVector[0][0].length);
 
         return inputVector;
-    }
-
-    // Helper method to replicate a single feature into multiple positions
-    private void replicateSingleFeatureToMultiple(float[] feature, float[][][] inputVector, int startIdx, int count) {
-        if (feature == null || inputVector == null || inputVector.length < startIdx + count) {
-            Log.e("AI", "Invalid input for replication");
-            return;
-        }
-
-        for (int i = 0; i < count; i++) {
-            for (int j = 0; j < feature.length; j++) {
-                inputVector[startIdx + i][j][0] = feature[j]; // 3D 배열의 마지막 차원에 저장
-            }
-        }
-    }
-
-    // 데이터를 복제하여 3D 배열에 저장
-    private void replicateData(float[][] source, float[][][] destination, int startIdx, int endIdx, int replicateCount) {
-        if (source == null || source.length == 0) {
-            Log.e("AI", "Source array is empty or null");
-            return;
-        }
-        if (destination == null || destination.length < endIdx) {
-            Log.e("AI", "Destination array is too small");
-            return;
-        }
-
-        int sourceRows = source.length;
-        int sourceCols = source[0].length;
-
-        Log.d("AI", "Source rows: " + sourceRows + ", columns: " + sourceCols);
-        Log.d("AI", "Replicating from " + startIdx + " to " + endIdx + " with " + replicateCount + " copies");
-
-        int destRow = startIdx;
-        for (int i = 0; i < sourceRows; i++) {
-            for (int j = 0; j < replicateCount && destRow < endIdx; j++, destRow++) {
-                if (destRow < destination.length) {
-                    for (int k = 0; k < sourceCols; k++) {
-                        destination[destRow][k][0] = source[i][k];  // 3D 배열 복사
-                    }
-                } else {
-                    Log.e("AI", "Destination index out of bounds: " + destRow);
-                }
-            }
-        }
     }
 
     private void printsize( String tag, List<Map<String, Object>> data){
@@ -601,7 +561,6 @@ public class SensorDataCollector extends AppCompatActivity {
     }
 
     private List<Map<String, Object>> sortAndRemoveTimestamp(List<Map<String, Object>> dataList) {
-        // Sort the list based on the timestamp
         Collections.sort(dataList, new Comparator<Map<String, Object>>() {
             @Override
             public int compare(Map<String, Object> o1, Map<String, Object> o2) {
