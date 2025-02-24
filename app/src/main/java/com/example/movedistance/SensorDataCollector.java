@@ -32,6 +32,8 @@ import org.pytorch.Tensor;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,7 +48,7 @@ public class SensorDataCollector extends AppCompatActivity {
 
     // 기본 센서 데이터는 최대 60개, IMU 데이터는 최대 60000개 저장하도록 설정
     private static final int MAX_SIZE_DEFAULT = 60;
-    private static final int MAX_SIZE_IMU = 60000;
+    private static final int MAX_SIZE_IMU = 6000;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
 
@@ -73,7 +75,6 @@ public class SensorDataCollector extends AppCompatActivity {
     private PyTorchHelper pyTorchHelper;
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
     private boolean notstartAI = true;
-
     TextView textAP, textBTS, textGPS, textIMU, textAIResult, textViewProcessed;
 
     @Override
@@ -136,53 +137,33 @@ public class SensorDataCollector extends AppCompatActivity {
     }
 
     private void startDataCollection() {
-        // 1초마다 AP, BTS, GPS 데이터 단발 수집 (IMU는 누적 수집으로 별도 진행)
-        handler.postDelayed(new Runnable() {
+        // 데이터 수집을 위한 Runnable 정의
+        Runnable dataCollectionRunnable = new Runnable() {
             @Override
             public void run() {
                 long timestamp = System.currentTimeMillis();
                 collectAPData(timestamp);
                 collectBTSData(timestamp);
                 collectGPSData(timestamp);
-                // 단발성 IMU 수집은 제거
-                handler.postDelayed(this, PROCESS_INTERVAL_01);
+                collectIMUData(timestamp);
+                handler.postDelayed(this, PROCESS_INTERVAL_01); // 지속적인 데이터 수집을 위해 다시 예약
             }
-        }, PROCESS_INTERVAL_01);
-        ExecutorService executor = Executors.newSingleThreadExecutor();
-        handler.postDelayed(new Runnable() {
+        };
+        // 데이터 처리를 위한 Runnable 정의
+        Runnable dataProcessingRunnable = new Runnable() {
             @Override
             public void run() {
-                textViewProcessed.setText("");
-                executor.execute(() -> {
-                    processAPData();
-                    processBTSData();
-                    processGPSData();
-
-                    handler.post(() -> {
-                        processAI();
-                        handler.postDelayed(this, PROCESS_INTERVAL_60);
-                    });
-                });
-            }
-        }, PROCESS_INTERVAL_60);
-
-
-        // 별도 IMU 누적 수집 사이클 시작 (1분 주기)
-        startIMUAccumulationCycle();
-    }
-
-    private void startIMUAccumulationCycle() {
-        imuDataList.clear(); // 기존 누적 데이터 초기화
-        collectIMUDataAccumulated();
-
-        // 60초 후 (60초 + 1초 마진) 누적된 IMU 데이터를 처리 후 다음 사이클 재시작
-        handler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
+                processAPData();
+                processBTSData();
+                processGPSData();
                 processIMUData();
-                startIMUAccumulationCycle();
+
+                handler.postDelayed(this, PROCESS_INTERVAL_60); // 지속적인 데이터 처리를 위해 다시 예약
             }
-        }, PROCESS_INTERVAL_60 + 1000);
+        };
+        // Runnable 예약
+        handler.postDelayed(dataCollectionRunnable, PROCESS_INTERVAL_01);
+        handler.postDelayed(dataProcessingRunnable, PROCESS_INTERVAL_60);
     }
 
     // AP 데이터 수집
@@ -218,17 +199,18 @@ public class SensorDataCollector extends AppCompatActivity {
         }
     }
 
+
     // AP 데이터 처리
     private void processAPData() {
         if (!apDataList.isEmpty()) {
-            long startTimestamp = System.currentTimeMillis() - (60 * 1000);
-            List<Map<String, Object>> processedData = APProcessor.processAP(apDataList, startTimestamp);
+            List<Map<String, Object>> processedData = APProcessor.processAP(apDataList, findEarliestTimestamp(apDataList));
             StringBuilder dataText = new StringBuilder("Processed AP Data:\n");
             for (Map<String, Object> entry : processedData) {
                 addData(apProcessedDataList, entry, "WiFi Processed");
                 dataText.append(entry.toString()).append("\n");
             }
             runOnUiThread(() -> textAP.setText(dataText.toString()));
+
         }
     }
 
@@ -259,9 +241,7 @@ public class SensorDataCollector extends AppCompatActivity {
     // BTS 데이터 처리
     private void processBTSData() {
         if (!btsDataList.isEmpty()) {
-            long startTimestamp = System.currentTimeMillis() - (60 * 1000);
-            List<Map<String, Object>> processedData = BTSProcessor.processBTS(btsDataList, startTimestamp);
-
+            List<Map<String, Object>> processedData = BTSProcessor.processBTS(btsDataList, findEarliestTimestamp(btsDataList));
             StringBuilder dataText = new StringBuilder("Processed BTS Data:\n");
             for (Map<String, Object> entry : processedData) {
                 addData(btsProcessedDataList, entry, "BTS Processed");
@@ -292,8 +272,7 @@ public class SensorDataCollector extends AppCompatActivity {
     // GPS 데이터 처리
     private void processGPSData() {
         if (!gpsDataList.isEmpty()) {
-            long startTimestamp = System.currentTimeMillis() - (60 * 1000);
-            List<Map<String, Object>> processedData = GPSProcessor.processGPS(gpsDataList, startTimestamp);
+            List<Map<String, Object>> processedData = GPSProcessor.processGPS(gpsDataList, findEarliestTimestamp(gpsDataList));
 
             StringBuilder dataText = new StringBuilder("Processed GPS Data:\n");
             for (Map<String, Object> entry : processedData) {
@@ -303,9 +282,8 @@ public class SensorDataCollector extends AppCompatActivity {
             runOnUiThread(() -> textGPS.setText(dataText.toString()));
         }
     }
-
     // IMU 데이터 누적 수집
-    private void collectIMUDataAccumulated() {
+    private void collectIMUData(long timestamp) {
         if (sensorManager == null) {
             Log.e("IMU", "SensorManager is not initialized.");
             return;
@@ -345,14 +323,16 @@ public class SensorDataCollector extends AppCompatActivity {
         sensorManager.registerListener(accumulationListener, gravitySensor, SensorManager.SENSOR_DELAY_GAME);
         sensorManager.registerListener(accumulationListener, linearAccelSensor, SensorManager.SENSOR_DELAY_GAME);
 
-        // 60초 누적
-        final long startTime = System.currentTimeMillis();
-
         // 10ms 간격으로 센서 데이터를 기록
         handler.postDelayed(new Runnable() {
             @SuppressLint("SetTextI18n")
             @Override
             public void run() {
+                if (System.currentTimeMillis() - timestamp >= 1000) { // 1초(1000ms) 경과 후 종료
+                    sensorManager.unregisterListener(accumulationListener);
+                    return;
+                }
+
                 if (sensorValues.containsKey(Sensor.TYPE_ACCELEROMETER) &&
                         sensorValues.containsKey(Sensor.TYPE_GYROSCOPE) &&
                         sensorValues.containsKey(Sensor.TYPE_MAGNETIC_FIELD) &&
@@ -362,7 +342,7 @@ public class SensorDataCollector extends AppCompatActivity {
                         sensorValues.containsKey(Sensor.TYPE_LINEAR_ACCELERATION)) {
 
                     Map<String, Object> data = new HashMap<>();
-                    data.put("timestamp", System.currentTimeMillis());
+                    data.put("timestamp", timestamp);
 
                     float[] accel = sensorValues.get(Sensor.TYPE_ACCELEROMETER);
                     assert accel != null;
@@ -408,20 +388,15 @@ public class SensorDataCollector extends AppCompatActivity {
 
                     addData(imuDataList, data, "IMU Accumulated");
                 }
-
-                if (System.currentTimeMillis() - startTime < (long) PROCESS_INTERVAL_60) {
-                    handler.postDelayed(this, 10);
-                } else {
-                    sensorManager.unregisterListener(accumulationListener);
-                    Log.d("IMU", "누적 수집 종료");
-                }
+                handler.postDelayed(this, 10);  // 10ms 간격으로 실행 (총 100회 반복)
             }
-        }, 10);
+        }, 5);
     }
 
     // IMU 데이터 처리 (누적 데이터 기반)
     private void processIMUData() {
-        if (!imuDataList.isEmpty()) {
+        if(!imuDataList.isEmpty()){
+            findEarliestTimestamp(imuDataList);
             List<Map<String, Object>> processedData = IMUProcessor.preImu(imuDataList);
 
             StringBuilder dataText = new StringBuilder("Processed IMU Data:\n");
@@ -431,6 +406,15 @@ public class SensorDataCollector extends AppCompatActivity {
             }
             runOnUiThread(() -> textIMU.setText(dataText.toString()));
         }
+        //processAI();
+    }
+
+    private static long findEarliestTimestamp(List<Map<String, Object>> dataList) {
+        return dataList.stream()
+                .filter(map -> map.containsKey("timestamp"))
+                .map(map -> (long) map.get("timestamp"))
+                .min(Long::compare)
+                .orElse(System.currentTimeMillis());
     }
 
     // AI 처리 - 여기서 AP, BTS, GPS, IMU 순서로 병합된 피처 벡터를 AI 모델의 입력으로 사용합니다.
@@ -486,6 +470,11 @@ public class SensorDataCollector extends AppCompatActivity {
     }
 
     private float[][][] getProcessedFeatureVector() {
+        printsize("AP", apProcessedDataList);
+        printsize("BTS", btsProcessedDataList);
+        printsize("GPS", gpsProcessedDataList);
+        printsize("IMU", imuProcessedDataList);
+
         if (apProcessedDataList.isEmpty()) {
             Log.e("AI", "AP 데이터가 없습니다.");
             return null;
@@ -506,77 +495,230 @@ public class SensorDataCollector extends AppCompatActivity {
         float[][][] inputVector = new float[340][60][1];
 
         // **AP 데이터 변환 (1개 → 60개로 복제)**
-        float[] apFeatures = extractFeatureVectorFromMap(apProcessedDataList.get(apProcessedDataList.size() - 1));
+        Log.d("AI", "AP 데이터 리스트 크기: " + apProcessedDataList.size());
+        List<Map<String, Object>> sortedAPDataList = sortAndRemoveTimestamp(apProcessedDataList);
+
+        float[] apFeatures = extractFeatureVectorFromMap(sortedAPDataList.get(sortedAPDataList.size() - 1));
         if (apFeatures == null) {
             Log.e("AI", "AP feature vector is null");
             return null;
         }
+        Log.d("AI", "AP feature vector 크기: " + apFeatures.length);
         replicateSingleFeatureToMultiple(apFeatures, inputVector, 0, 60);
 
         // **BTS 데이터 변환 (12개 → 60개, 1개당 5개 복제)**
-        float[][] btsFeatures = extractFeatureVectorFromList(btsProcessedDataList, 12, 5);
+        List<Map<String, Object>> sortedbtsDataList = sortAndRemoveTimestamp(btsProcessedDataList);
+        float[][] btsFeatures = extractFeatureVectorFromList(sortedbtsDataList, 12, 5);
         if (btsFeatures == null) {
             Log.e("AI", "BTS feature vector is null");
             return null;
         }
+        Log.d("AI", "BTS feature vector 크기: " + btsFeatures.length + " x " + (btsFeatures.length > 0 ? btsFeatures[0].length : 0));
+
+        // 복제 실행 (수정된 함수 사용)
         replicateData(btsFeatures, inputVector, 60, 120, 5);
 
         // **GPS 데이터 변환 (12개 → 60개, 1개당 5개 복제)**
-        float[][] gpsFeatures = extractFeatureVectorFromList(gpsProcessedDataList, 12, 5);
+        Log.d("AI", "GPS 데이터 리스트 크기: " + gpsProcessedDataList.size());
+        List<Map<String, Object>> sortedGPSDataList = sortAndRemoveTimestamp(gpsProcessedDataList);
+        float[][] gpsFeatures = extractFeatureVectorFromList(sortedGPSDataList, 12, 5);
         if (gpsFeatures == null) {
             Log.e("AI", "GPS feature vector is null");
             return null;
         }
+        Log.d("AI", "GPS feature vector 크기: " + gpsFeatures.length + " x " + (gpsFeatures.length > 0 ? gpsFeatures[0].length : 0));
         replicateData(gpsFeatures, inputVector, 120, 180, 5);
 
         // **IMU 데이터 변환 (60개 → 60개, 1대1 매칭)**
-        float[][] imuFeatures = extractFeatureVectorFromList(imuProcessedDataList, 60, 1);
+        Log.d("AI", "IMU 데이터 리스트 크기: " + imuProcessedDataList.size());
+        List<Map<String, Object>> sortedIMUDataList = sortAndRemoveTimestamp(imuProcessedDataList);
+        float[][] imuFeatures = extractFeatureVectorFromList(adjustImuDataList(sortedIMUDataList, 60), 60, 1);
         if (imuFeatures == null) {
             Log.e("AI", "IMU feature vector is null");
             return null;
         }
+
+        Log.d("AI", "IMU feature vector 크기: " + imuFeatures.length + " x " + (imuFeatures.length > 0 ? imuFeatures[0].length : 0));
         for (int i = 0; i < 60; i++) {
             System.arraycopy(imuFeatures[i], 0, inputVector[i + 180], 0, 60);
         }
+
+
+        // 최종 입력 벡터 크기 확인
+        Log.d("AI", "최종 입력 벡터 크기: " + inputVector.length + " x " + inputVector[0].length + " x " + inputVector[0][0].length);
 
         return inputVector;
     }
 
     // Helper method to replicate a single feature into multiple positions
-    private void replicateSingleFeatureToMultiple(float[] feature, float[][][] inputVector, int startIndex, int replicationCount) {
-        for (int i = startIndex; i < replicationCount; i++) {
-            System.arraycopy(feature, 0, inputVector[i], 0, feature.length);
+    private void replicateSingleFeatureToMultiple(float[] feature, float[][][] inputVector, int startIdx, int count) {
+        if (feature == null || inputVector == null || inputVector.length < startIdx + count) {
+            Log.e("AI", "Invalid input for replication");
+            return;
         }
-    }
 
-    private void replicateData(float[][] source, float[][][] target, int start, int end, int factor) {
-        int index = 0;
-        for (int i = 0; i < source.length; i++) {
-            for (int j = 0; j < factor; j++) { // 각 데이터를 factor배 반복
-                if (index >= end - start) break;
-                System.arraycopy(source[i], 0, target[start + index], 0, 60);
-                index++;
+        for (int i = 0; i < count; i++) {
+            for (int j = 0; j < feature.length; j++) {
+                inputVector[startIdx + i][j][0] = feature[j]; // 3D 배열의 마지막 차원에 저장
             }
         }
     }
 
+    // 데이터를 복제하여 3D 배열에 저장
+    private void replicateData(float[][] source, float[][][] destination, int startIdx, int endIdx, int replicateCount) {
+        if (source == null || source.length == 0) {
+            Log.e("AI", "Source array is empty or null");
+            return;
+        }
+        if (destination == null || destination.length < endIdx) {
+            Log.e("AI", "Destination array is too small");
+            return;
+        }
 
+        int sourceRows = source.length;
+        int sourceCols = source[0].length;
+
+        Log.d("AI", "Source rows: " + sourceRows + ", columns: " + sourceCols);
+        Log.d("AI", "Replicating from " + startIdx + " to " + endIdx + " with " + replicateCount + " copies");
+
+        int destRow = startIdx;
+        for (int i = 0; i < sourceRows; i++) {
+            for (int j = 0; j < replicateCount && destRow < endIdx; j++, destRow++) {
+                if (destRow < destination.length) {
+                    for (int k = 0; k < sourceCols; k++) {
+                        destination[destRow][k][0] = source[i][k];  // 3D 배열 복사
+                    }
+                } else {
+                    Log.e("AI", "Destination index out of bounds: " + destRow);
+                }
+            }
+        }
+    }
+
+    private void printsize( String tag, List<Map<String, Object>> data){
+        if (!data.isEmpty()) {
+            int numberOfColumns = data.get(0).size();
+            Log.d(tag,"열의 개수:"+numberOfColumns);
+        } else {
+            Log.d(tag,"리스트가 비어 있습니다.");
+        }
+    }
+
+    private List<Map<String, Object>> sortAndRemoveTimestamp(List<Map<String, Object>> dataList) {
+        // Sort the list based on the timestamp
+        Collections.sort(dataList, new Comparator<Map<String, Object>>() {
+            @Override
+            public int compare(Map<String, Object> o1, Map<String, Object> o2) {
+                Long timestamp1 = (Long) o1.get("timestamp");
+                Long timestamp2 = (Long) o2.get("timestamp");
+
+                if (timestamp1 == null || timestamp2 == null) {
+                    Log.e("Sorting", "One or both timestamps are null");
+                    return 0; // Consider equal if either timestamp is null
+                }
+
+                return timestamp1.compareTo(timestamp2);
+            }
+        });
+
+        // Remove the timestamp from each map
+        for (Map<String, Object> data : dataList) {
+            data.remove("timestamp");
+        }
+
+        return dataList;
+    }
+
+    // 맵에서 피처 벡터 추출
     private float[] extractFeatureVectorFromMap(Map<String, Object> map) {
-        if (map == null || map.isEmpty()) return null;
-        Object value = map.values().iterator().next();
-        if (!(value instanceof double[][])) {
-            Log.e("AI", "Feature value is not a double[][]");
+
+        if (map == null || map.isEmpty()) {
+            Log.e("AI", "Map is null or empty");
             return null;
         }
-        double[][] matrix = (double[][]) value;
-        if (matrix.length == 0) return null;
+
+        Object value = map.values().iterator().next();
+
+        if (value == null) {
+            Log.e("AI", "Feature value is null");
+            return null;
+        }
+
+        //Log.d("AI", "Feature value class: " + value.getClass().getName());
+
+        double[][] matrix = null;
+
+        // 자동 변환 처리
+        if (value instanceof double[][]) {
+            matrix = (double[][]) value;
+        } else if (value instanceof double[]) {
+            matrix = new double[][]{(double[]) value}; // 1차원 배열을 2차원 배열로 변환
+        } else if (value instanceof List) {
+            List<?> list = (List<?>) value;
+
+            if (!list.isEmpty()) {
+                if (list.get(0) instanceof List) {
+                    // List<List<Double>> → double[][]
+                    List<List<Double>> nestedList = (List<List<Double>>) list;
+                    matrix = new double[nestedList.size()][];
+                    for (int i = 0; i < nestedList.size(); i++) {
+                        matrix[i] = nestedList.get(i).stream().mapToDouble(Double::doubleValue).toArray();
+                    }
+                } else if (list.get(0) instanceof Double) {
+                    // List<Double> → double[][]
+                    List<Double> singleList = (List<Double>) list;
+                    matrix = new double[][]{singleList.stream().mapToDouble(Double::doubleValue).toArray()};
+                }
+            }
+        } else if (value instanceof Long || value instanceof Integer || value instanceof Double) {
+            // 단일 숫자값(Long, Integer, Double) → double[][]
+            matrix = new double[][]{{((Number) value).doubleValue()}};
+        } else {
+            Log.e("AI", "Unsupported data type: " + value.getClass().getName());
+            return null;
+        }
+
+        if (matrix == null || matrix.length == 0) {
+            Log.e("AI", "Matrix is empty or null after conversion");
+            return null;
+        }
+
         double[] vector = matrix[0]; // 첫 행 사용
         float[] floatVector = new float[vector.length];
+
         for (int i = 0; i < vector.length; i++) {
             floatVector[i] = (float) vector[i];
         }
+
         return floatVector;
     }
+
+    private List<Map<String, Object>> adjustImuDataList(List<Map<String, Object>> imuDataList, int targetSize) {
+        int originalSize = imuDataList.size();
+
+        if (originalSize == targetSize) {
+            // 이미 원하는 크기인 경우
+            return imuDataList;
+        }
+
+        // 새로운 리스트 생성
+        List<Map<String, Object>> adjustedList = new ArrayList<>(imuDataList);
+
+        // 60개보다 작다면 마지막 값을 복제하여 채운다.
+        if (originalSize < targetSize) {
+            Map<String, Object> lastValue = imuDataList.get(originalSize - 1);
+            for (int i = originalSize; i < targetSize; i++) {
+                // 마지막 값을 복제하여 추가
+                adjustedList.add(new HashMap<>(lastValue));
+            }
+        } else if (originalSize > targetSize) {
+            // 60개보다 크다면 초과분을 잘라낸다.
+            adjustedList = adjustedList.subList(0, targetSize);
+        }
+
+        return adjustedList;
+    }
+
 
     private <T> void addData(List<T> dataList, T data, String tag) {
         int maxSize = MAX_SIZE_DEFAULT;
@@ -585,7 +727,7 @@ public class SensorDataCollector extends AppCompatActivity {
         }
         if (dataList.size() >= maxSize) {
             dataList.remove(0);
-            Log.d(tag, "데이터 제거");
+//            Log.d(tag, "데이터 제거");
         }
         dataList.add(data);
     }

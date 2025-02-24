@@ -28,9 +28,6 @@ public class IMUProcessor {
             dfs.put(sensor, null);
         }
 
-        // ✅ IMU 데이터 오류 검사
-
-
         // ✅ 센서별 데이터 분할 및 변환
         for (String sensor : sensors) {
             String usingSensorData = IMUConfig.getUsingSensorData(sensor);
@@ -47,7 +44,7 @@ public class IMUProcessor {
         }
 
         // ✅ 최종 데이터 병합 준비 (타임스탬프 추가)
-        Map<String, double[][]> calcDfs = new HashMap<>();
+        Map<String, Object> calcDfs = new HashMap<>();
         calcDfs.putAll(getUniqueTimestamps(imu));
 
         // ✅ `processingImu()` 호출하여 데이터 전처리 수행
@@ -78,21 +75,28 @@ public class IMUProcessor {
         return processData(concatenateAll(calcDfs));
     }
 
-    public static List<Map<String, Object>> processData(Map<String, double[][]> dataMap) {
+    public static List<Map<String, Object>> processData(Map<String, Object> dataMap) {
         List<Map<String, Object>> resultList = new ArrayList<>();
 
-        // Determine the number of rows based on one of the data arrays
-        int numRows = dataMap.isEmpty() ? 0 : dataMap.values().iterator().next().length;
+        int numRows = dataMap.isEmpty() ? 0 : ((double[][]) dataMap.values().iterator().next()).length;
 
         for (int rowIndex = 0; rowIndex < numRows; rowIndex++) {
             Map<String, Object> entry = new LinkedHashMap<>();
 
-            // Populate the map for this row
             for (String header : predefinedHeaders) {
                 if (dataMap.containsKey(header)) {
-                    double[][] data = dataMap.get(header);
-                    if (rowIndex < data.length) {
-                        entry.put(header, data[rowIndex]);
+                    Object data = dataMap.get(header);
+
+                    if (data instanceof double[][]) {
+                        double[][] doubleData = (double[][]) data;
+                        if (rowIndex < doubleData.length && doubleData[rowIndex].length == 1) {
+                            entry.put(header, doubleData[rowIndex][0]);
+                        }
+                    } else if (data instanceof long[][]) {
+                        long[][] longData = (long[][]) data;
+                        if (rowIndex < longData.length && longData[rowIndex].length == 1) {
+                            entry.put(header, longData[rowIndex][0]);
+                        }
                     }
                 }
             }
@@ -102,7 +106,6 @@ public class IMUProcessor {
 
         return resultList;
     }
-
 
 
     /**
@@ -117,36 +120,47 @@ public class IMUProcessor {
                 System.arraycopy(data[i * 100 + j], 0, reshaped[i][j], 0, cols);
             }
         }
-
         return reshaped;
     }
-
     /**
      * 유니크 타임스탬프 데이터 추출
      */
-    private static Map<String, double[][]> getUniqueTimestamps(List<Map<String, Object>> imu) {
-        Set<Double> timestamps = new TreeSet<>();
+    private static Map<String, long[][]> getUniqueTimestamps(List<Map<String, Object>> imu) {
+        Set<Long> timestamps = new TreeSet<>();
 
         // imu 리스트를 순회하면서 "timestamp" 데이터를 추출
         for (Map<String, Object> imuEntry : imu) {
             if (imuEntry.containsKey("timestamp")) {
-                double time = getFirstValue(imuEntry.get("timestamp"));
+                long time = getFirstValueAsLong(imuEntry.get("timestamp"));
                 timestamps.add(time);
             }
         }
 
         // TreeSet을 2D 배열로 변환
-        double[][] timestampArray = new double[timestamps.size()][1];
+        long[][] timestampArray = new long[timestamps.size()][1];
         int index = 0;
-        for (Double time : timestamps) {
+        for (Long time : timestamps) {
             timestampArray[index++][0] = time;
         }
 
         // 고유한 타임스탬프를 결과 맵에 저장
-        Map<String, double[][]> result = new HashMap<>();
+        Map<String, long[][]> result = new HashMap<>();
         result.put("timestamp", timestampArray);
 
         return result;
+    }
+
+    // getFirstValueAsLong method to handle Long values
+    private static long getFirstValueAsLong(Object obj) {
+        if (obj instanceof List) {
+            List<?> list = (List<?>) obj;
+            if (!list.isEmpty() && list.get(0) instanceof Number) {
+                return ((Number) list.get(0)).longValue();
+            }
+        } else if (obj instanceof Number) {
+            return ((Number) obj).longValue();
+        }
+        return 0L;
     }
 
 
@@ -207,32 +221,50 @@ public class IMUProcessor {
     /**
      * ✅ IMU 데이터를 병합하여 하나의 2D 배열로 반환 (row 크기 자동 조정)
      */
-    private static Map<String, double[][]> concatenateAll(Map<String, double[][]> dataMap) {
+    private static Map<String, Object> concatenateAll(Map<String, Object> dataMap) {
         if (dataMap == null || dataMap.isEmpty()) {
             throw new IllegalArgumentException("⚠ Error: 데이터 맵이 비어 있습니다.");
         }
 
-        Map<String, double[][]> sensorDataMap = new HashMap<>();
+        Map<String, Object> sensorDataMap = new HashMap<>();
 
-        for (Map.Entry<String, double[][]> entry : dataMap.entrySet()) {
-            double[][] data = entry.getValue();
-            if (data == null || data.length == 0) continue;
+        for (Map.Entry<String, Object> entry : dataMap.entrySet()) {
+            Object data = entry.getValue();
+            if (data instanceof double[][]) {
+                double[][] doubleData = (double[][]) data;
+                if (doubleData.length == 0) continue;
 
-            int rows = data.length;
-            int cols = data[0].length;
+                int rows = doubleData.length;
+                int cols = doubleData[0].length;
 
-            double[][] newData = new double[rows][cols];
+                double[][] newData = new double[rows][cols];
 
-            for (int i = 0; i < rows; i++) {
-                System.arraycopy(data[i], 0, newData[i], 0, cols);
+                for (int i = 0; i < rows; i++) {
+                    System.arraycopy(doubleData[i], 0, newData[i], 0, cols);
+                }
+
+                sensorDataMap.put(entry.getKey(), newData);
+            } else if (data instanceof long[][]) {
+                long[][] longData = (long[][]) data;
+                if (longData.length == 0) continue;
+
+                int rows = longData.length;
+                int cols = longData[0].length;
+
+                long[][] newData = new long[rows][cols];
+
+                for (int i = 0; i < rows; i++) {
+                    System.arraycopy(longData[i], 0, newData[i], 0, cols);
+                }
+
+                sensorDataMap.put(entry.getKey(), newData);
             }
-
-            // ✅ 기존 센서 이름을 유지하면서 저장
-            sensorDataMap.put(entry.getKey(), newData);
         }
 
         return sensorDataMap;
     }
+
+
 
 
 

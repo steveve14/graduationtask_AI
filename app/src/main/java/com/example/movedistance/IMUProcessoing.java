@@ -19,7 +19,6 @@ public class IMUProcessoing {
             double[][][] gravity, 
             String prefix) 
         {
-        
         //System.out.println("Starting :" + prefix);
         if (sensor == null || sensor.length == 0) {
             System.err.println("⚠ Warning: " + prefix + " 센서 데이터가 비어 있습니다.");
@@ -120,7 +119,7 @@ public class IMUProcessoing {
                 spectralFeaturesData = concatenateArrays(spectralFeaturesData, spectralFeaturesX, spectralFeaturesY, spectralFeaturesZ);
             }
         }
-        
+
         if (statFeatures && spectralFeatures) {
             features = concatenateArrays(statFeaturesData, spectralFeaturesData);
             //System.out.println("Debug: Statistical and Spectral Features Returned");

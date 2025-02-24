@@ -94,52 +94,52 @@ public class MainActivity extends AppCompatActivity {
         startai = findViewById(R.id.startai);
 
         startTime = 0;
-//        //지도
-//        mapView = findViewById(R.id.map);
-//        btnMyLocation = findViewById(R.id.btnMyLocation);
-//        offlineMapManager = new OfflineMapManager(this, mapView);
-//        gpsTracker = new GpsTracker(this);
-//
-//        // GPS 데이터 업데이트 설정
-//        gpsTracker.setLocationUpdateCallback((location, speed) -> {
-//            GeoPoint geoPoint = new GeoPoint(location.getLatitude(), location.getLongitude());
-//            offlineMapManager.updateLocation(geoPoint, speed);
-//
-//            // 자동 따라가기 모드가 켜져 있으면 지도 자동 이동
-//            if (isFollowingLocation) {
-//                mapView.getController().animateTo(geoPoint);
-//            }
-//        });
-//
-//        gpsTracker.startTracking();
-//
-//        // 현재 위치 버튼 클릭 시 자동 따라가기 활성화 및 지도 이동
-//        btnMyLocation.setOnClickListener(v -> {
-//            Location currentLocation = gpsTracker.getLastKnownLocation();
-//            if (currentLocation != null) {
-//                GeoPoint geoPoint = new GeoPoint(currentLocation.getLatitude(), currentLocation.getLongitude());
-//                mapView.getController().animateTo(geoPoint);
-//                mapView.getController().setZoom(18.0);
-//                isFollowingLocation = true; // 자동 따라가기 활성화
-//            }
-//        });
-//
-//        // 사용자가 지도를 이동하면 자동 따라가기 해제
-//        MapEventsOverlay mapEventsOverlay = new MapEventsOverlay(new MapEventsReceiver() {
-//            @Override
-//            public boolean singleTapConfirmedHelper(GeoPoint geoPoint) {
-//                return false;
-//            }
-//
-//            @Override
-//            public boolean longPressHelper(GeoPoint geoPoint) {
-//                isFollowingLocation = false; // 길게 누르면 자동 따라가기 해제
-//                return false;
-//            }
-//        });
-//        mapView.getOverlays().add(mapEventsOverlay);
-//
-//        //지도 끝
+        //지도
+        mapView = findViewById(R.id.map);
+        btnMyLocation = findViewById(R.id.btnMyLocation);
+        offlineMapManager = new OfflineMapManager(this, mapView);
+        gpsTracker = new GpsTracker(this);
+
+        // GPS 데이터 업데이트 설정
+        gpsTracker.setLocationUpdateCallback((location, speed) -> {
+            GeoPoint geoPoint = new GeoPoint(location.getLatitude(), location.getLongitude());
+            offlineMapManager.updateLocation(geoPoint, speed);
+
+            // 자동 따라가기 모드가 켜져 있으면 지도 자동 이동
+            if (isFollowingLocation) {
+                mapView.getController().animateTo(geoPoint);
+            }
+        });
+
+        gpsTracker.startTracking();
+
+        // 현재 위치 버튼 클릭 시 자동 따라가기 활성화 및 지도 이동
+        btnMyLocation.setOnClickListener(v -> {
+            Location currentLocation = gpsTracker.getLastKnownLocation();
+            if (currentLocation != null) {
+                GeoPoint geoPoint = new GeoPoint(currentLocation.getLatitude(), currentLocation.getLongitude());
+                mapView.getController().animateTo(geoPoint);
+                mapView.getController().setZoom(18.0);
+                isFollowingLocation = true; // 자동 따라가기 활성화
+            }
+        });
+
+        // 사용자가 지도를 이동하면 자동 따라가기 해제
+        MapEventsOverlay mapEventsOverlay = new MapEventsOverlay(new MapEventsReceiver() {
+            @Override
+            public boolean singleTapConfirmedHelper(GeoPoint geoPoint) {
+                return false;
+            }
+
+            @Override
+            public boolean longPressHelper(GeoPoint geoPoint) {
+                isFollowingLocation = false; // 길게 누르면 자동 따라가기 해제
+                return false;
+            }
+        });
+        mapView.getOverlays().add(mapEventsOverlay);
+
+        //지도 끝
         manager = (SensorManager) getSystemService(SENSOR_SERVICE); //센서관리객체설정
         Sensor accelrometer = manager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         Sensor Rotation = manager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
