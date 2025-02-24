@@ -406,7 +406,7 @@ public class SensorDataCollector extends AppCompatActivity {
             }
             runOnUiThread(() -> textIMU.setText(dataText.toString()));
         }
-        //processAI();
+        processAI();
     }
 
     private static long findEarliestTimestamp(List<Map<String, Object>> dataList) {
@@ -539,10 +539,6 @@ public class SensorDataCollector extends AppCompatActivity {
         }
 
         Log.d("AI", "IMU feature vector 크기: " + imuFeatures.length + " x " + (imuFeatures.length > 0 ? imuFeatures[0].length : 0));
-        for (int i = 0; i < 60; i++) {
-            System.arraycopy(imuFeatures[i], 0, inputVector[i + 180], 0, 60);
-        }
-
 
         // 최종 입력 벡터 크기 확인
         Log.d("AI", "최종 입력 벡터 크기: " + inputVector.length + " x " + inputVector[0].length + " x " + inputVector[0][0].length);

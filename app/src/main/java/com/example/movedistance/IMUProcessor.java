@@ -19,7 +19,7 @@ public class IMUProcessor {
         for (String sensor : sensors) {
             channels.put(sensor, getSensorChannelCount(sensor));
         }
-
+        imu = extendIMUDataByTimestamp(imu);
         Collections.sort(sensors);
 
         // ✅ 센서 데이터 초기화
@@ -39,6 +39,7 @@ public class IMUProcessor {
             //System.out.println("Debug: " + sensor + " to "+ usingSensorData +" has " + cols + " columns");
 
             // 3D 배열 변환 (-1, 100, cols)
+
             double[][][] reshapedData = reshapeData(cutData, cols);
             dfs.put(sensor, reshapedData);
         }
@@ -73,6 +74,33 @@ public class IMUProcessor {
 
         // ✅ 최종 데이터 병합 후 반환
         return processData(concatenateAll(calcDfs));
+    }
+
+    public static List<Map<String, Object>> extendIMUDataByTimestamp(List<Map<String, Object>> imuData) {
+        // 그룹화된 데이터 저장
+        Map<Long, List<Map<String, Object>>> groupedByTimestamp = new HashMap<>();
+
+        // 각 행을 timestamp 기준으로 그룹화
+        for (Map<String, Object> entry : imuData) {
+            long timestamp = getFirstValueAsLong(entry.get("timestamp"));
+            groupedByTimestamp.computeIfAbsent(timestamp, k -> new ArrayList<>()).add(entry);
+        }
+
+        List<Map<String, Object>> extendedData = new ArrayList<>();
+
+        // 각 그룹에 대해 100개가 될 때까지 복제
+        for (Map.Entry<Long, List<Map<String, Object>>> entry : groupedByTimestamp.entrySet()) {
+            List<Map<String, Object>> group = entry.getValue();
+            while (group.size() < 100) {
+                // 랜덤하게 복제
+                int randomIndex = new Random().nextInt(group.size());
+                Map<String, Object> clonedEntry = new HashMap<>(group.get(randomIndex));
+                group.add(clonedEntry);
+            }
+            extendedData.addAll(group);
+        }
+
+        return extendedData;
     }
 
     public static List<Map<String, Object>> processData(Map<String, Object> dataMap) {
