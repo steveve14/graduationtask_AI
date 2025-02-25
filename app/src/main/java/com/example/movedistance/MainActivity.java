@@ -14,13 +14,9 @@ import android.widget.Button;
 
 import android.widget.TextView;
 
-import org.osmdroid.events.MapEventsReceiver;
 import org.osmdroid.util.GeoPoint;
 import org.osmdroid.views.MapView;
 import android.location.Location;
-import android.view.View;
-
-import org.osmdroid.views.overlay.MapEventsOverlay;
 
 
 public class MainActivity extends AppCompatActivity {
@@ -123,21 +119,6 @@ public class MainActivity extends AppCompatActivity {
                 isFollowingLocation = true; // 자동 따라가기 활성화
             }
         });
-
-        // 사용자가 지도를 이동하면 자동 따라가기 해제
-        MapEventsOverlay mapEventsOverlay = new MapEventsOverlay(new MapEventsReceiver() {
-            @Override
-            public boolean singleTapConfirmedHelper(GeoPoint geoPoint) {
-                return false;
-            }
-
-            @Override
-            public boolean longPressHelper(GeoPoint geoPoint) {
-                isFollowingLocation = false; // 길게 누르면 자동 따라가기 해제
-                return false;
-            }
-        });
-        mapView.getOverlays().add(mapEventsOverlay);
 
         //지도 끝
         manager = (SensorManager) getSystemService(SENSOR_SERVICE); //센서관리객체설정

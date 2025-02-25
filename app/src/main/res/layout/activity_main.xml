@@ -40,7 +40,7 @@
     <org.osmdroid.views.MapView
         android:id="@+id/map"
         android:layout_width="match_parent"
-        android:layout_height="400dp" />
+        android:layout_height="350dp" />
 
     <TextView
         android:id="@+id/textView5"
