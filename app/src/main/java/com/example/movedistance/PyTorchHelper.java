@@ -67,11 +67,40 @@ public class PyTorchHelper {
             // ✅ 출력 크기 로깅
             Log.d("PyTorch", "✅ 출력 텐서 크기: " + Arrays.toString(outputTensor.shape()));
 
-            return outputTensor.getDataAsFloatArray();
+            // 🔹 소프트맥스 적용하여 확률로 변환
+            float[] logits = outputTensor.getDataAsFloatArray();
+            float[] probabilities = softmax(logits);
+
+            return probabilities;
         } catch (Exception e) {
             Log.e("PyTorch", "❌ 모델 예측 중 오류 발생: " + e.getMessage());
             return new float[0];  // 예측 실패 시 빈 배열 반환하여 앱 크래시 방지
         }
     }
 
+    /**
+     * 🔹 소프트맥스 함수: 로짓을 확률로 변환
+     */
+    private float[] softmax(float[] logits) {
+        float maxLogit = Float.NEGATIVE_INFINITY;
+        for (float logit : logits) {
+            if (logit > maxLogit) {
+                maxLogit = logit;
+            }
+        }
+
+        float sum = 0.0f;
+        float[] expLogits = new float[logits.length];
+        for (int i = 0; i < logits.length; i++) {
+            expLogits[i] = (float) Math.exp(logits[i] - maxLogit); // 안정성을 위한 지수 계산
+            sum += expLogits[i];
+        }
+
+        float[] probabilities = new float[logits.length];
+        for (int i = 0; i < logits.length; i++) {
+            probabilities[i] = expLogits[i] / sum;
+        }
+
+        return probabilities;
+    }
 }

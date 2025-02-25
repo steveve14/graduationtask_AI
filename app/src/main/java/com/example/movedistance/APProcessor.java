@@ -27,7 +27,7 @@ public class APProcessor {
                     }
                 }
 
-                int wifiCount = uniqueBSSIDs.size();
+                float wifiCount = uniqueBSSIDs.size();
                 if (wifiCount > 0) {
                     hasData = true; // wifi_cnt가 0보다 큰 값이 하나라도 있으면 true 설정
                     Map<String, Object> result = new LinkedHashMap<>(); // 순서 보장
