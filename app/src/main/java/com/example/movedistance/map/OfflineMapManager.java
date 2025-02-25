@@ -1,4 +1,4 @@
-package com.example.movedistance;
+package com.example.movedistance.MAP;
 
 import android.content.Context;
 import android.graphics.Color;

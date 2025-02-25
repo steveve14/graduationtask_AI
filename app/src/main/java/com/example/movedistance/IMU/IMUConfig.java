@@ -1,4 +1,4 @@
-package com.example.movedistance;
+package com.example.movedistance.IMU;
 
 import java.util.Arrays;
 import java.util.HashMap;

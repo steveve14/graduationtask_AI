@@ -1,4 +1,4 @@
-package com.example.movedistance;
+package com.example.movedistance.MAP;
 
 import android.Manifest;
 import android.annotation.SuppressLint;

@@ -18,6 +18,9 @@ import org.osmdroid.util.GeoPoint;
 import org.osmdroid.views.MapView;
 import android.location.Location;
 
+import com.example.movedistance.MAP.GpsTracker;
+import com.example.movedistance.MAP.OfflineMapManager;
+
 
 public class MainActivity extends AppCompatActivity {
     //define variables
@@ -65,7 +68,7 @@ public class MainActivity extends AppCompatActivity {
 
     boolean firstRun = true;
 
-    boolean startORstop = true;
+    boolean RunOnlyOnce = true;
 
     //지도 관련
     private OfflineMapManager offlineMapManager;
@@ -298,12 +301,12 @@ public class MainActivity extends AppCompatActivity {
                     text1.append("기압 센서 지원하지 않습니다.");
                 }
             }
-            if(startORstop){
+            if(RunOnlyOnce){
                 reset();
                 ing.setText("측정 중...");
                 startbtn.setText("측정 끝내기");
 
-                startORstop = false;
+                RunOnlyOnce = false;
             }else{
                 ing.setText("측정 완료");
                 startbtn.setText("다시 측정하기");
@@ -311,7 +314,7 @@ public class MainActivity extends AppCompatActivity {
                 manager.unregisterListener(listener, Rotation);
                 manager.unregisterListener(listener, Pressure);
 
-                startORstop = true;
+                RunOnlyOnce = true;
             }
         });
 

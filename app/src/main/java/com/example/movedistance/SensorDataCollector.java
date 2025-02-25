@@ -26,6 +26,10 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
+import com.example.movedistance.AP.APProcessor;
+import com.example.movedistance.BTS.BTSProcessor;
+import com.example.movedistance.GPS.GPSProcessor;
+import com.example.movedistance.IMU.IMUProcessor;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
 import org.pytorch.Tensor;

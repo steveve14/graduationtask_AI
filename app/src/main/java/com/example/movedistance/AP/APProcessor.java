@@ -1,4 +1,4 @@
-package com.example.movedistance;
+package com.example.movedistance.AP;
 
 import java.util.ArrayList;
 import java.util.HashSet;
