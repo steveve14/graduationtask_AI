@@ -554,23 +554,26 @@ public class SensorDataCollector extends AppCompatActivity {
     }
 
     public static Tensor convertListMapToTensor(List<Map<String, Object>> dataList) {
-        int numRows = dataList.size();
-        int numCols = 340;  // 각 Map에 340개의 데이터 포인트가 있다고 가정
+        int numRows = 340;  // 각 Map에 340개의 데이터 포인트가 있다고 가정
+        int numCols = 60;   // 60개의 행을 가정
 
-        // 60 x 340의 데이터를 저장할 배열
+        // 340 x 60의 데이터를 저장할 배열
         float[] dataArray = new float[numRows * numCols];
 
         int index = 0;
-        for (Map<String, Object> map : dataList) {
+        for (int col = 0; col < numCols; col++) {
+            Map<String, Object> map = dataList.get(col);
+            int dataCount = 0;  // 각 Map에서 수집한 데이터 수
             for (String key : map.keySet()) {
                 Object value = map.get(key);
                 if (value instanceof Number) {
                     // Number를 float로 변환하여 저장
                     dataArray[index++] = ((Number) value).floatValue();
+                    dataCount++;
                 }
-                if (index >= numRows * numCols) {
-                    break;  // 필요한 데이터가 모두 수집되면 중단
-                }
+            }
+            if (dataCount != numRows) {
+                throw new IllegalArgumentException("Each map must contain exactly " + numRows + " data points.");
             }
         }
 
@@ -579,7 +582,7 @@ public class SensorDataCollector extends AppCompatActivity {
             throw new IllegalArgumentException("Data array size does not match expected tensor shape size.");
         }
 
-        // Tensor 생성 (1 x 60 x 340 형태)
+        // Tensor 생성 (1 x 340 x 60 형태)
         return Tensor.fromBlob(dataArray, new long[]{1, numRows, numCols});
     }
 
