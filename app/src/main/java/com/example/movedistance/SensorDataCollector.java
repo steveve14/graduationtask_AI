@@ -461,10 +461,10 @@ public class SensorDataCollector extends AppCompatActivity {
             if (notstartAI) {
                 notstartAI = false;
             } else {
-                float[] outputData = pyTorchHelper.predict(getProcessedFeatureVector());
+                //float[] outputData = pyTorchHelper.predict(getProcessedFeatureVector());
 
-                Log.d("PyTorch Output", "Result: " + Arrays.toString(outputData));
-                runOnUiThread(() -> textAIResult.setText(String.valueOf(outputData[0])));
+                //Log.d("PyTorch Output", "Result: " + Arrays.toString(outputData));
+                //runOnUiThread(() -> textAIResult.setText(String.valueOf(outputData[0])));
             }
         });
     }
