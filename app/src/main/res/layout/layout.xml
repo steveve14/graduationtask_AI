@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/activity_main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center"
+        android:orientation="horizontal">
+
+        <org.osmdroid.views.MapView
+            android:id="@+id/map"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_margin="10dp"
+            tools:ignore="NestedWeights" />
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btn"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="10dp"
+            android:background="@android:color/black"
+            android:text="현재 위치"
+            android:textColor="@android:color/white"
+            android:textSize="16sp"
+            tools:ignore="HardcodedText,TextContrastCheck" />
+
+        <Button
+            android:id="@+id/btnMyLocation"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="10dp"
+            android:background="@android:color/black"
+            android:text="현재 위치"
+            android:textColor="@android:color/white"
+            android:textSize="16sp"
+            tools:ignore="HardcodedText,TextContrastCheck" />
+
+        <Button
+            android:id="@+id/startai"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@android:color/black"
+            android:text="뒤로"
+            android:textColor="@android:color/white"
+            android:textSize="16sp"
+            tools:ignore="HardcodedText,TextContrastCheck" />
+    </LinearLayout>
+</LinearLayout>

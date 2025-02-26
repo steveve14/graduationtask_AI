@@ -80,6 +80,9 @@ public class SensorDataCollector extends AppCompatActivity {
     private PyTorchHelper pyTorchHelper;
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
     private boolean notstartAI = true;
+
+    //거리 개산 추가
+
     TextView textAP, textBTS, textGPS, textIMU, textAIResult, textViewProcessed;
 
     @Override
@@ -299,6 +302,10 @@ public class SensorDataCollector extends AppCompatActivity {
             Log.e("IMU", "SensorManager is not initialized.");
             return;
         }
+        //거리 계산용
+        Sensor accelrometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        Sensor Rotation = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
+        Sensor Pressure = sensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE);
 
         Sensor accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         Sensor gyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
