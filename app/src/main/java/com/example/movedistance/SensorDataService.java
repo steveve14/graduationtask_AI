@@ -31,7 +31,7 @@ import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -40,8 +40,8 @@ import java.util.concurrent.Executors;
 
 public class SensorDataService extends Service {
     private static final int PROCESS_INTERVAL_01 = 1000; // 1초 간격
-    private static final int IMU_INTERVAL_MS = 10; // 40ms 간격
-    private static final int MAX_IMU_PER_SECOND = 25; // 1초에 최대 25개
+    private static final int IMU_INTERVAL_MS = 10; // 10ms 간격
+    private static final int MAX_IMU_PER_SECOND = 100; // 1초에 최대 25개
     private static final int INITIAL_DELAY_MS = 3000; // 최초 3초 지연
     private static final String TAG = "SensorDataService";
 
@@ -100,10 +100,10 @@ public class SensorDataService extends Service {
             @Override
             public void run() {
                 long timestamp = System.currentTimeMillis();
+                collectIMUData(timestamp);
                 collectAPData(timestamp);
                 collectBTSData(timestamp);
                 collectGPSData(timestamp);
-                collectIMUData(timestamp);
                 handler.postDelayed(this, PROCESS_INTERVAL_01);
             }
         };
@@ -124,13 +124,13 @@ public class SensorDataService extends Service {
                             WifiInfo wifiInfo = wifiManager.getConnectionInfo();
                             ssid = wifiInfo.getSSID();
                         }
-                        Map<String, Object> data = new HashMap<>(6);
+                        Map<String, Object> data = new LinkedHashMap<>(6);
                         data.put("timestamp", timestamp);
-                        data.put("bssid", scanResult.BSSID);
-                        data.put("ssid", ssid);
-                        data.put("level", scanResult.level);
-                        data.put("frequency", scanResult.frequency);
-                        data.put("capabilities", scanResult.capabilities);
+                        data.put("bssid", scanResult.BSSID); // String 타입 보장
+                        data.put("ssid", ssid); // String 타입 보장
+                        data.put("level", (float) scanResult.level); // 명시적 Float
+                        data.put("frequency", (float) scanResult.frequency); // 명시적 Float
+                        data.put("capabilities", scanResult.capabilities); // String 타입 보장
                         saveToCSV("AP", data);
                     }
                 }
@@ -149,7 +149,7 @@ public class SensorDataService extends Service {
                     for (CellInfo cellInfo : cellInfoList) {
                         if (cellInfo instanceof CellInfoLte) {
                             CellIdentityLte cellIdentity = ((CellInfoLte) cellInfo).getCellIdentity();
-                            Map<String, Object> data = new HashMap<>(3);
+                            Map<String, Object> data = new LinkedHashMap<>(3);
                             data.put("timestamp", timestamp);
                             data.put("ci", cellIdentity.getCi());
                             data.put("pci", cellIdentity.getPci());
@@ -168,7 +168,7 @@ public class SensorDataService extends Service {
                 == PackageManager.PERMISSION_GRANTED) {
             fusedLocationProviderClient.getLastLocation().addOnSuccessListener(location -> {
                 if (location != null) {
-                    Map<String, Object> data = new HashMap<>(3);
+                    Map<String, Object> data = new LinkedHashMap<>(3);
                     data.put("timestamp", timestamp);
                     data.put("latitude", location.getLatitude());
                     data.put("longitude", location.getLongitude());
@@ -202,7 +202,7 @@ public class SensorDataService extends Service {
         }
 
         final List<Map<String, Object>> imuDataBuffer = new ArrayList<>(MAX_IMU_PER_SECOND);
-        final long startTime = System.currentTimeMillis();
+        final long startTime = timestamp;
 
         class SensorDataHolder {
             float[] accel = new float[3];
@@ -250,10 +250,6 @@ public class SensorDataService extends Service {
             boolean isAllSet() {
                 return accelSet && gyroSet && magSet && rotSet && pressureSet && gravitySet && linearSet;
             }
-
-            void reset() {
-                accelSet = gyroSet = magSet = rotSet = pressureSet = gravitySet = linearSet = false;
-            }
         }
 
         final SensorDataHolder sensorData = new SensorDataHolder();
@@ -296,8 +292,8 @@ public class SensorDataService extends Service {
                 }
 
                 if (sensorData.isAllSet()) {
-                    Map<String, Object> data = new HashMap<>(20);
-                    data.put("timestamp", System.currentTimeMillis());
+                    Map<String, Object> data = new LinkedHashMap<>(20);
+                    data.put("timestamp", startTime);
                     data.put("accel.x", sensorData.accel[0]);
                     data.put("accel.y", sensorData.accel[1]);
                     data.put("accel.z", sensorData.accel[2]);
@@ -323,7 +319,6 @@ public class SensorDataService extends Service {
 
                     imuDataBuffer.add(data);
                     count++;
-                    sensorData.reset();
                 }
                 handler.postDelayed(this, IMU_INTERVAL_MS);
             }
@@ -342,7 +337,12 @@ public class SensorDataService extends Service {
 
                 String fileName = currentDate + "_" + sensorType + ".csv";
                 File file = new File(directory, fileName);
-                boolean needsHeader = !file.exists() || file.length() == 0; // 파일이 없거나 비어 있을 때 헤더 기록
+                boolean needsHeader = !file.exists() || file.length() == 0;
+
+                if (!data.containsKey("timestamp") || data.get("timestamp") == null) {
+                    Log.e(TAG, sensorType + " 데이터에 timestamp 누락");
+                    return;
+                }
 
                 try (FileWriter writer = new FileWriter(file, true)) {
                     if (needsHeader) {
@@ -353,7 +353,12 @@ public class SensorDataService extends Service {
                     StringBuilder line = new StringBuilder(data.size() * 10);
                     for (Object value : data.values()) {
                         if (line.length() > 0) line.append(",");
-                        line.append(value.toString());
+                        // timestamp는 소수점 없이 기록
+                        if (value instanceof Long) {
+                            line.append(Long.toString((Long) value));
+                        } else {
+                            line.append(value != null ? value.toString() : "null");
+                        }
                     }
                     writer.append(line.toString()).append("\n");
                     Log.d(TAG, sensorType + " CSV 데이터 기록: " + line.toString());
@@ -363,7 +368,6 @@ public class SensorDataService extends Service {
             }
         });
     }
-
     @Override
     public void onDestroy() {
         super.onDestroy();

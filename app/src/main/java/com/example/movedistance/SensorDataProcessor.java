@@ -151,14 +151,31 @@ public class SensorDataProcessor {
                 for (int i = 0; i < headers.length; i++) {
                     String value = values[i];
                     if (headers[i].equals("timestamp")) {
-                        data.put(headers[i], Long.parseLong(value));
-                    } else if (value.matches("-?\\d+\\.?\\d*")) {
-                        data.put(headers[i], Float.parseFloat(value));
-                    } else {
+                        try {
+                            // 실수형 처리 지원
+                            if (value.contains(".")) {
+                                data.put(headers[i], (long) Float.parseFloat(value));
+                            } else {
+                                data.put(headers[i], Long.parseLong(value));
+                            }
+                        } catch (NumberFormatException e) {
+                            Log.w(TAG, "타임스탬프 파싱 실패: " + value + ", 데이터 제외");
+                            data = null;
+                            break;
+                        }
+                    } else if (headers[i].equals("bssid") || headers[i].equals("ssid") || headers[i].equals("capabilities")) {
                         data.put(headers[i], value);
+                    } else if (value.isEmpty()) {
+                        data.put(headers[i], 0.0f);
+                    } else {
+                        try {
+                            data.put(headers[i], Float.parseFloat(value));
+                        } catch (NumberFormatException e) {
+                            data.put(headers[i], value);
+                        }
                     }
                 }
-                dataList.add(data);
+                if (data != null) dataList.add(data);
             }
             Log.d(TAG, sensorType + " 데이터 로드 완료 (" + date + "), 크기: " + dataList.size());
         } catch (IOException e) {
@@ -187,28 +204,52 @@ public class SensorDataProcessor {
         List<Map<String, Object>> remainingData = new ArrayList<>();
         try (BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(file)))) {
             String headerLine = br.readLine();
+            if (headerLine == null) {
+                Log.e(TAG, "CSV 헤더 없음: " + fileName);
+                return;
+            }
             String[] headers = headerLine.split(",");
 
             String line;
             while ((line = br.readLine()) != null) {
                 String[] values = line.split(",");
-                if (values.length != headers.length) {
-                    continue;
-                }
+                if (values.length != headers.length) continue;
                 Map<String, Object> data = new HashMap<>();
                 for (int i = 0; i < headers.length; i++) {
                     String value = values[i];
                     if (headers[i].equals("timestamp")) {
-                        data.put(headers[i], Long.parseLong(value));
-                    } else if (value.matches("-?\\d+\\.?\\d*")) {
-                        data.put(headers[i], Float.parseFloat(value));
-                    } else {
+                        try {
+                            // 실수형 문자열 처리
+                            if (value.contains(".")) {
+                                data.put(headers[i], (long) Float.parseFloat(value));
+                            } else {
+                                data.put(headers[i], Long.parseLong(value));
+                            }
+                        } catch (NumberFormatException e) {
+                            Log.w(TAG, "타임스탬프 파싱 실패: " + value + ", 데이터 제외");
+                            data = null;
+                            break;
+                        }
+                    } else if (headers[i].equals("bssid") || headers[i].equals("ssid") || headers[i].equals("capabilities")) {
                         data.put(headers[i], value);
+                    } else if (value.isEmpty()) {
+                        data.put(headers[i], 0.0f);
+                    } else {
+                        try {
+                            data.put(headers[i], Float.parseFloat(value));
+                        } catch (NumberFormatException e) {
+                            data.put(headers[i], value);
+                        }
                     }
                 }
-                boolean isUsed = usedData.stream().anyMatch(used -> used.get("timestamp").equals(data.get("timestamp")));
-                if (!isUsed) {
-                    remainingData.add(data);
+                if (data != null) {
+                    Map<String, Object> finalData = data;
+                    boolean isUsed = usedData.stream().anyMatch(used -> {
+                        Object usedTs = used.get("timestamp");
+                        Object dataTs = finalData.get("timestamp");
+                        return usedTs != null && dataTs != null && usedTs.equals(dataTs);
+                    });
+                    if (!isUsed) remainingData.add(data);
                 }
             }
         } catch (IOException e) {
