@@ -45,8 +45,8 @@ public class SensorDataProcessor {
             "WALK", "BIKE", "BUS", "CAR", "SUBWAY", "ETC", "OTHER1", "OTHER2", "OTHER3", "OTHER4", "OTHER5"
     };
     private static final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMdd", Locale.getDefault());
-    private static final long ONE_MINUTE_MS = 60 * 1000; // 1분 = 60초
-    private static final int MIN_DATA_SIZE = 60; // 최소 데이터 크기 (AP, BTS, GPS는 60, IMU는 별도 처리)
+    static final long ONE_MINUTE_MS = 60 * 1000;
+    private static final int MIN_DATA_SIZE = 60;
 
     private final Context context;
     private Module model;
@@ -91,7 +91,6 @@ public class SensorDataProcessor {
         return file.getAbsolutePath();
     }
 
-    // CSV 파일에서 1분 분량 데이터 로드, 부족 시 다음 날 데이터 사용
     private List<Map<String, Object>> loadOneMinuteCSVData(String sensorType) {
         List<Map<String, Object>> dataList = new ArrayList<>();
         Calendar calendar = Calendar.getInstance();
@@ -123,7 +122,6 @@ public class SensorDataProcessor {
         return dataList;
     }
 
-    // 특정 날짜의 CSV 데이터 로드
     private List<Map<String, Object>> loadCSVDataForDate(String sensorType, String date) {
         List<Map<String, Object>> dataList = new ArrayList<>();
         String fileName = date + "_" + sensorType + ".csv";
@@ -169,7 +167,6 @@ public class SensorDataProcessor {
         return dataList;
     }
 
-    // 1분 분량 데이터 필터링
     private List<Map<String, Object>> filterOneMinuteData(List<Map<String, Object>> dataList) {
         if (dataList.isEmpty()) return dataList;
         Long earliestTimestamp = findEarliestTimestamp(dataList);
@@ -178,7 +175,6 @@ public class SensorDataProcessor {
                 .collect(Collectors.toList());
     }
 
-    // 사용한 데이터 제거 및 CSV 업데이트
     private void removeProcessedDataFromCSV(String sensorType, List<Map<String, Object>> usedData) {
         String date = dateFormat.format(System.currentTimeMillis());
         String fileName = date + "_" + sensorType + ".csv";
@@ -236,7 +232,6 @@ public class SensorDataProcessor {
         }
     }
 
-    // AP 데이터 로드 및 처리
     public void processAPData() {
         apDataList.clear();
         apDataList.addAll(loadOneMinuteCSVData("AP"));
@@ -250,7 +245,6 @@ public class SensorDataProcessor {
         }
     }
 
-    // BTS 데이터 로드 및 처리
     public void processBTSData() {
         btsDataList.clear();
         btsDataList.addAll(loadOneMinuteCSVData("BTS"));
@@ -264,7 +258,6 @@ public class SensorDataProcessor {
         }
     }
 
-    // GPS 데이터 로드 및 처리
     public void processGPSData() {
         gpsDataList.clear();
         gpsDataList.addAll(loadOneMinuteCSVData("GPS"));
@@ -278,7 +271,6 @@ public class SensorDataProcessor {
         }
     }
 
-    // IMU 데이터 로드 및 처리
     public void processIMUData() {
         imuDataList.clear();
         imuDataList.addAll(loadOneMinuteCSVData("IMU"));
@@ -292,7 +284,6 @@ public class SensorDataProcessor {
         }
     }
 
-    // 리스트 복제 및 초기화
     public static List<Map<String, Object>> cloneAndClearAPDataList(List<Map<String, Object>> originalList) {
         List<Map<String, Object>> clonedList = new ArrayList<>();
         for (Map<String, Object> originalMap : originalList) {
@@ -303,7 +294,6 @@ public class SensorDataProcessor {
         return clonedList;
     }
 
-    // 가장 이른 타임스탬프 찾기
     private static long findEarliestTimestamp(List<Map<String, Object>> dataList) {
         return dataList.stream()
                 .filter(map -> map.containsKey("timestamp"))
@@ -312,7 +302,6 @@ public class SensorDataProcessor {
                 .orElse(System.currentTimeMillis());
     }
 
-    // Tensor 생성
     public Tensor getProcessedFeatureVector() {
         processAPData();
         processBTSData();
@@ -379,7 +368,49 @@ public class SensorDataProcessor {
         return dataList;
     }
 
-    // PyTorch 모델 추론
+    // 이동 거리 계산 (단위: 미터)
+    private double calculateDistance(List<Map<String, Object>> gpsData) {
+        double totalDistance = 0.0;
+        for (int i = 0; i < gpsData.size() - 1; i++) {
+            double lat1 = (float) gpsData.get(i).get("latitude");
+            double lon1 = (float) gpsData.get(i).get("longitude");
+            double lat2 = (float) gpsData.get(i + 1).get("latitude");
+            double lon2 = (float) gpsData.get(i + 1).get("longitude");
+
+            totalDistance += haversineDistance(lat1, lon1, lat2, lon2);
+        }
+        return totalDistance;
+    }
+
+    // Haversine 공식으로 거리 계산 (미터 단위)
+    private double haversineDistance(double lat1, double lon1, double lat2, double lon2) {
+        final int R = 6371000; // 지구 반지름 (미터)
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+                        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+    }
+
+    // 예측 결과 및 거리 정보를 날짜별 CSV로 저장
+    private void savePredictionToCSV(String transportMode, double distance, long startTimestamp) {
+        String date = dateFormat.format(startTimestamp); // 타임스탬프 기반 날짜 사용
+        String fileName = date + "_predictions.csv";
+        File file = new File(context.getExternalFilesDir(null), "SensorData/" + fileName);
+
+        try (FileWriter writer = new FileWriter(file, true)) {
+            if (!file.exists() || file.length() == 0) {
+                writer.append("start_timestamp,transport_mode,distance_meters\n");
+            }
+            writer.append(String.format("%d,%s,%.2f\n", startTimestamp, transportMode, distance));
+            Log.d(TAG, "예측 결과 CSV 저장 (" + fileName + "): " + transportMode + ", 거리: " + distance + " 미터");
+        } catch (IOException e) {
+            Log.e(TAG, "예측 결과 CSV 저장 실패: " + e.getMessage(), e);
+        }
+    }
+
     public void predictMovingMode(Tensor inputTensor) {
         try {
             long[] inputShape = inputTensor.shape();
@@ -418,6 +449,12 @@ public class SensorDataProcessor {
             if (maxProb >= threshold) {
                 predictedResult = TRANSPORT_MODES[maxIndex];
                 Log.d(TAG, "예측된 이동수단: " + predictedResult + ", 확률: " + maxProb);
+
+                if (!gpsProcessedDataList.isEmpty()) {
+                    double distance = calculateDistance(gpsProcessedDataList);
+                    long startTimestamp = findEarliestTimestamp(gpsProcessedDataList);
+                    savePredictionToCSV(predictedResult, distance, startTimestamp);
+                }
             } else {
                 predictedResult = "알 수 없음 (확률 낮음)";
                 Log.w(TAG, "확률 낮음: " + maxProb);
@@ -457,16 +494,14 @@ public class SensorDataProcessor {
         Log.d(TAG, "예측 결과 설정: " + result);
     }
 
-    // WorkManager를 사용한 백그라운드 작업 예약
     public static void scheduleBackgroundPrediction(Context context) {
-        PeriodicWorkRequest workRequest = new PeriodicWorkRequest.Builder(SensorPredictionWorker.class, 30, TimeUnit.SECONDS)
+        PeriodicWorkRequest workRequest = new PeriodicWorkRequest.Builder(SensorPredictionWorker.class, 1, TimeUnit.MINUTES)
                 .build();
 
         WorkManager.getInstance(context).enqueue(workRequest);
-        Log.d(TAG, "30초 주기 백그라운드 작업 예약 완료");
+        Log.d(TAG, "1분 주기 백그라운드 작업 예약 완료");
     }
 
-    // WorkManager Worker 클래스
     public static class SensorPredictionWorker extends Worker {
         public SensorPredictionWorker(Context context, WorkerParameters params) {
             super(context, params);
@@ -492,7 +527,6 @@ public class SensorDataProcessor {
         }
     }
 
-    // 실행 예시
     public static void runPrediction(Context context) {
         scheduleBackgroundPrediction(context);
     }
