@@ -335,6 +335,7 @@ public class SensorDataService extends Service {
                     directory.mkdirs();
                 }
 
+                String currentDate = dateFormat.format(new Date());
                 String fileName = currentDate + "_" + sensorType + ".csv";
                 File file = new File(directory, fileName);
                 boolean needsHeader = !file.exists() || file.length() == 0;

@@ -24,6 +24,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.security.Provider;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -198,12 +199,14 @@ public class SensorDataProcessor {
         File file = new File(context.getExternalFilesDir(null), "SensorData/" + fileName);
 
         if (!file.exists()) {
+            Log.d(TAG, "제거할 CSV 파일 없음: " + fileName);
             return;
         }
 
         List<Map<String, Object>> remainingData = new ArrayList<>();
+        String headerLine; // try 블록 내에서만 사용
         try (BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(file)))) {
-            String headerLine = br.readLine();
+            headerLine = br.readLine();
             if (headerLine == null) {
                 Log.e(TAG, "CSV 헤더 없음: " + fileName);
                 return;
@@ -219,7 +222,6 @@ public class SensorDataProcessor {
                     String value = values[i];
                     if (headers[i].equals("timestamp")) {
                         try {
-                            // 실수형 문자열 처리
                             if (value.contains(".")) {
                                 data.put(headers[i], (long) Float.parseFloat(value));
                             } else {
@@ -258,21 +260,28 @@ public class SensorDataProcessor {
         }
 
         try (FileWriter writer = new FileWriter(file, false)) {
-            writer.append(String.join(",", remainingData.get(0).keySet())).append("\n");
-            for (Map<String, Object> data : remainingData) {
-                StringBuilder line = new StringBuilder();
-                for (Object value : data.values()) {
-                    if (line.length() > 0) line.append(",");
-                    line.append(value.toString());
+            if (headerLine != null) {
+                writer.append(headerLine).append("\n");
+                if (remainingData.isEmpty()) {
+                    Log.d(TAG, sensorType + " CSV 업데이트: 남은 데이터 없음, 헤더만 유지");
+                } else {
+                    for (Map<String, Object> data : remainingData) {
+                        StringBuilder line = new StringBuilder();
+                        for (Object value : data.values()) {
+                            if (line.length() > 0) line.append(",");
+                            line.append(value.toString());
+                        }
+                        writer.append(line.toString()).append("\n");
+                    }
+                    Log.d(TAG, sensorType + " CSV 업데이트 완료, 남은 데이터 크기: " + remainingData.size());
                 }
-                writer.append(line.toString()).append("\n");
+            } else {
+                Log.w(TAG, "헤더가 null, 파일 비움");
             }
-            Log.d(TAG, sensorType + " CSV 업데이트 완료, 남은 데이터 크기: " + remainingData.size());
         } catch (IOException e) {
             Log.e(TAG, "CSV 쓰기 실패: " + sensorType, e);
         }
     }
-
     public void processAPData() {
         apDataList.clear();
         apDataList.addAll(loadOneMinuteCSVData("AP"));
