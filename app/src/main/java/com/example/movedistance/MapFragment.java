@@ -42,7 +42,6 @@ public class MapFragment extends Fragment {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // osmdroid 설정 초기화
         Configuration.getInstance().load(getContext(), getActivity().getPreferences(Context.MODE_PRIVATE));
     }
 
@@ -55,13 +54,11 @@ public class MapFragment extends Fragment {
         dateInput = view.findViewById(R.id.date_input);
         loadButton = view.findViewById(R.id.load_button);
 
-        // MapView 기본 설정
         mapView.setTileSource(TileSourceFactory.MAPNIK);
         mapView.setBuiltInZoomControls(true);
         mapView.setMultiTouchControls(true);
         mapView.getController().setZoom(15.0);
 
-        // 날짜 입력 버튼 클릭 시 데이터 로드
         loadButton.setOnClickListener(v -> {
             String selectedDate = dateInput.getText().toString().trim();
             if (selectedDate.isEmpty()) {
@@ -71,7 +68,6 @@ public class MapFragment extends Fragment {
             loadAndDisplayPredictionData(selectedDate);
         });
 
-        // 기본적으로 현재 날짜 데이터 로드
         String currentDate = dateFormat.format(System.currentTimeMillis());
         dateInput.setText(currentDate);
         loadAndDisplayPredictionData(currentDate);
@@ -79,7 +75,6 @@ public class MapFragment extends Fragment {
         return view;
     }
 
-    // CSV 파일에서 예측 데이터 로드 및 Polyline 그리기
     private void loadAndDisplayPredictionData(String date) {
         String fileName = date + "_predictions.csv";
         File file = new File(getContext().getExternalFilesDir(null), "SensorData/" + fileName);
@@ -119,19 +114,19 @@ public class MapFragment extends Fragment {
             return;
         }
 
-        // Polyline 및 거리 정보 표시
         displayPredictionOnMap(predictionData);
     }
 
     private void displayPredictionOnMap(List<Map<String, String>> predictionData) {
-        mapView.getOverlays().clear(); // 이전 Polyline 제거
+        mapView.getOverlays().clear();
         StringBuilder distanceInfo = new StringBuilder("이동 기록:\n");
+        GeoPoint firstPoint = null;
+
         for (Map<String, String> data : predictionData) {
             String transportMode = data.get("transport_mode");
             double distance = Double.parseDouble(data.get("distance_meters"));
             long startTimestamp = Long.parseLong(data.get("start_timestamp"));
 
-            // GPS 데이터 로드
             List<GeoPoint> geoPoints = loadGeoPointsFromGPS(startTimestamp);
             if (!geoPoints.isEmpty()) {
                 Polyline polyline = new Polyline();
@@ -141,9 +136,8 @@ public class MapFragment extends Fragment {
                 polyline.setTitle(transportMode + " - 거리: " + String.format("%.2f m", distance));
                 mapView.getOverlays().add(polyline);
 
-                // 처음 로드 시 첫 번째 경로의 중심으로 설정
-                if (mapView.getOverlays().size() == 1) {
-                    mapView.getController().setCenter(geoPoints.get(0));
+                if (firstPoint == null) {
+                    firstPoint = geoPoints.get(0);
                 }
             }
 
@@ -151,11 +145,14 @@ public class MapFragment extends Fragment {
                     new SimpleDateFormat("HH:mm:ss").format(startTimestamp), transportMode, distance));
         }
 
+        if (firstPoint != null) {
+            mapView.getController().setCenter(firstPoint);
+        }
+
         mapView.invalidate();
         textDistanceInfo.setText(distanceInfo.toString());
     }
 
-    // GPS 데이터에서 GeoPoint 리스트 로드
     private List<GeoPoint> loadGeoPointsFromGPS(long startTimestamp) {
         List<GeoPoint> geoPoints = new ArrayList<>();
         String date = dateFormat.format(startTimestamp);
@@ -195,7 +192,6 @@ public class MapFragment extends Fragment {
         return geoPoints;
     }
 
-    // 이동수단별 색상 설정
     private int getTransportColor(String transportMode) {
         switch (transportMode) {
             case "WALK": return Color.GREEN;

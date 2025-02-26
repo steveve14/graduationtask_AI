@@ -35,14 +35,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class SensorDataService extends Service {
     private static final int PROCESS_INTERVAL_01 = 1000; // 1초 간격
-    private static final int IMU_INTERVAL_MS = 10; // 10ms 간격 (1초에 최대 100번)
-    private static final int MAX_IMU_PER_SECOND = 100; // 1초에 최대 100개
+    private static final int IMU_INTERVAL_MS = 10; // 40ms 간격
+    private static final int MAX_IMU_PER_SECOND = 25; // 1초에 최대 25개
     private static final int INITIAL_DELAY_MS = 3000; // 최초 3초 지연
     private static final String TAG = "SensorDataService";
 
@@ -66,8 +65,24 @@ public class SensorDataService extends Service {
         sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
 
-        // 3초 후에 데이터 수집 시작
+        if (!checkPermissions()) {
+            Log.e(TAG, "필수 권한이 없음. 서비스 중단");
+            stopSelf();
+            return;
+        }
+
         handler.postDelayed(this::startDataCollection, INITIAL_DELAY_MS);
+    }
+
+    private boolean checkPermissions() {
+        boolean hasWifiPermission = ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_WIFI_STATE)
+                == PackageManager.PERMISSION_GRANTED;
+        boolean hasLocationPermission = ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED;
+        boolean hasPhoneStatePermission = ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_PHONE_STATE)
+                == PackageManager.PERMISSION_GRANTED;
+
+        return hasWifiPermission && hasLocationPermission && hasPhoneStatePermission;
     }
 
     @Override
@@ -95,7 +110,6 @@ public class SensorDataService extends Service {
         handler.post(dataCollectionRunnable);
     }
 
-    // AP 데이터 수집 및 저장
     private void collectAPData(long timestamp) {
         if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_WIFI_STATE)
                 == PackageManager.PERMISSION_GRANTED) {
@@ -110,7 +124,7 @@ public class SensorDataService extends Service {
                             WifiInfo wifiInfo = wifiManager.getConnectionInfo();
                             ssid = wifiInfo.getSSID();
                         }
-                        Map<String, Object> data = new HashMap<>();
+                        Map<String, Object> data = new HashMap<>(6);
                         data.put("timestamp", timestamp);
                         data.put("bssid", scanResult.BSSID);
                         data.put("ssid", ssid);
@@ -126,7 +140,6 @@ public class SensorDataService extends Service {
         }
     }
 
-    // BTS 데이터 수집 및 저장
     private void collectBTSData(long timestamp) {
         if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_PHONE_STATE)
                 == PackageManager.PERMISSION_GRANTED) {
@@ -136,7 +149,7 @@ public class SensorDataService extends Service {
                     for (CellInfo cellInfo : cellInfoList) {
                         if (cellInfo instanceof CellInfoLte) {
                             CellIdentityLte cellIdentity = ((CellInfoLte) cellInfo).getCellIdentity();
-                            Map<String, Object> data = new HashMap<>();
+                            Map<String, Object> data = new HashMap<>(3);
                             data.put("timestamp", timestamp);
                             data.put("ci", cellIdentity.getCi());
                             data.put("pci", cellIdentity.getPci());
@@ -150,23 +163,23 @@ public class SensorDataService extends Service {
         }
     }
 
-    // GPS 데이터 수집 및 저장
     private void collectGPSData(long timestamp) {
         if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION)
                 == PackageManager.PERMISSION_GRANTED) {
             fusedLocationProviderClient.getLastLocation().addOnSuccessListener(location -> {
                 if (location != null) {
-                    Map<String, Object> data = new HashMap<>();
+                    Map<String, Object> data = new HashMap<>(3);
                     data.put("timestamp", timestamp);
                     data.put("latitude", location.getLatitude());
                     data.put("longitude", location.getLongitude());
                     saveToCSV("GPS", data);
+                } else {
+                    Log.w(TAG, "GPS 위치 데이터 없음");
                 }
-            });
+            }).addOnFailureListener(e -> Log.e(TAG, "GPS 데이터 수집 실패: " + e.getMessage()));
         }
     }
 
-    // IMU 데이터 수집 및 저장 (1초에 최대 100개)
     private void collectIMUData(long timestamp) {
         if (sensorManager == null) {
             Log.e(TAG, "SensorManager가 초기화되지 않음");
@@ -188,27 +201,80 @@ public class SensorDataService extends Service {
             return;
         }
 
-        final Map<Integer, float[]> sensorValues = new ConcurrentHashMap<>();
         final List<Map<String, Object>> imuDataBuffer = new ArrayList<>(MAX_IMU_PER_SECOND);
         final long startTime = System.currentTimeMillis();
+
+        class SensorDataHolder {
+            float[] accel = new float[3];
+            float[] gyro = new float[3];
+            float[] mag = new float[3];
+            float[] rot = new float[4];
+            float[] pressure = new float[1];
+            float[] gravity = new float[3];
+            float[] linear = new float[3];
+            boolean accelSet, gyroSet, magSet, rotSet, pressureSet, gravitySet, linearSet;
+
+            void update(SensorEvent event) {
+                switch (event.sensor.getType()) {
+                    case Sensor.TYPE_ACCELEROMETER:
+                        System.arraycopy(event.values, 0, accel, 0, 3);
+                        accelSet = true;
+                        break;
+                    case Sensor.TYPE_GYROSCOPE:
+                        System.arraycopy(event.values, 0, gyro, 0, 3);
+                        gyroSet = true;
+                        break;
+                    case Sensor.TYPE_MAGNETIC_FIELD:
+                        System.arraycopy(event.values, 0, mag, 0, 3);
+                        magSet = true;
+                        break;
+                    case Sensor.TYPE_ROTATION_VECTOR:
+                        System.arraycopy(event.values, 0, rot, 0, Math.min(event.values.length, 4));
+                        rotSet = true;
+                        break;
+                    case Sensor.TYPE_PRESSURE:
+                        pressure[0] = event.values[0];
+                        pressureSet = true;
+                        break;
+                    case Sensor.TYPE_GRAVITY:
+                        System.arraycopy(event.values, 0, gravity, 0, 3);
+                        gravitySet = true;
+                        break;
+                    case Sensor.TYPE_LINEAR_ACCELERATION:
+                        System.arraycopy(event.values, 0, linear, 0, 3);
+                        linearSet = true;
+                        break;
+                }
+            }
+
+            boolean isAllSet() {
+                return accelSet && gyroSet && magSet && rotSet && pressureSet && gravitySet && linearSet;
+            }
+
+            void reset() {
+                accelSet = gyroSet = magSet = rotSet = pressureSet = gravitySet = linearSet = false;
+            }
+        }
+
+        final SensorDataHolder sensorData = new SensorDataHolder();
 
         SensorEventListener listener = new SensorEventListener() {
             @Override
             public void onSensorChanged(SensorEvent event) {
-                sensorValues.put(event.sensor.getType(), event.values.clone());
+                sensorData.update(event);
             }
 
             @Override
             public void onAccuracyChanged(Sensor sensor, int accuracy) {}
         };
 
-        sensorManager.registerListener(listener, accelerometer, SensorManager.SENSOR_DELAY_GAME);
-        sensorManager.registerListener(listener, gyroscope, SensorManager.SENSOR_DELAY_GAME);
-        sensorManager.registerListener(listener, magnetometer, SensorManager.SENSOR_DELAY_GAME);
-        sensorManager.registerListener(listener, rotationVector, SensorManager.SENSOR_DELAY_GAME);
-        sensorManager.registerListener(listener, pressureSensor, SensorManager.SENSOR_DELAY_GAME);
-        sensorManager.registerListener(listener, gravitySensor, SensorManager.SENSOR_DELAY_GAME);
-        sensorManager.registerListener(listener, linearAccelSensor, SensorManager.SENSOR_DELAY_GAME);
+        sensorManager.registerListener(listener, accelerometer, SensorManager.SENSOR_DELAY_NORMAL);
+        sensorManager.registerListener(listener, gyroscope, SensorManager.SENSOR_DELAY_NORMAL);
+        sensorManager.registerListener(listener, magnetometer, SensorManager.SENSOR_DELAY_NORMAL);
+        sensorManager.registerListener(listener, rotationVector, SensorManager.SENSOR_DELAY_NORMAL);
+        sensorManager.registerListener(listener, pressureSensor, SensorManager.SENSOR_DELAY_NORMAL);
+        sensorManager.registerListener(listener, gravitySensor, SensorManager.SENSOR_DELAY_NORMAL);
+        sensorManager.registerListener(listener, linearAccelSensor, SensorManager.SENSOR_DELAY_NORMAL);
 
         Runnable imuCollector = new Runnable() {
             int count = 0;
@@ -217,61 +283,47 @@ public class SensorDataService extends Service {
             public void run() {
                 if (count >= MAX_IMU_PER_SECOND || System.currentTimeMillis() - startTime >= 1000) {
                     sensorManager.unregisterListener(listener);
-                    for (Map<String, Object> data : imuDataBuffer) {
-                        saveToCSV("IMU", data);
+                    if (imuDataBuffer.isEmpty()) {
+                        Log.w(TAG, "IMU 데이터 버퍼가 비어 있음");
+                    } else {
+                        Log.d(TAG, "IMU 데이터 저장: " + imuDataBuffer.size() + "개");
+                        for (Map<String, Object> data : imuDataBuffer) {
+                            saveToCSV("IMU", data);
+                        }
                     }
+                    imuDataBuffer.clear();
                     return;
                 }
 
-                if (sensorValues.containsKey(Sensor.TYPE_ACCELEROMETER) &&
-                        sensorValues.containsKey(Sensor.TYPE_GYROSCOPE) &&
-                        sensorValues.containsKey(Sensor.TYPE_MAGNETIC_FIELD) &&
-                        sensorValues.containsKey(Sensor.TYPE_ROTATION_VECTOR) &&
-                        sensorValues.containsKey(Sensor.TYPE_PRESSURE) &&
-                        sensorValues.containsKey(Sensor.TYPE_GRAVITY) &&
-                        sensorValues.containsKey(Sensor.TYPE_LINEAR_ACCELERATION)) {
-
-                    Map<String, Object> data = new HashMap<>();
+                if (sensorData.isAllSet()) {
+                    Map<String, Object> data = new HashMap<>(20);
                     data.put("timestamp", System.currentTimeMillis());
-
-                    float[] accel = sensorValues.get(Sensor.TYPE_ACCELEROMETER);
-                    data.put("accel.x", accel[0]);
-                    data.put("accel.y", accel[1]);
-                    data.put("accel.z", accel[2]);
-
-                    float[] gyro = sensorValues.get(Sensor.TYPE_GYROSCOPE);
-                    data.put("gyro.x", gyro[0]);
-                    data.put("gyro.y", gyro[1]);
-                    data.put("gyro.z", gyro[2]);
-
-                    float[] mag = sensorValues.get(Sensor.TYPE_MAGNETIC_FIELD);
-                    data.put("mag.x", mag[0]);
-                    data.put("mag.y", mag[1]);
-                    data.put("mag.z", mag[2]);
-
-                    float[] rot = sensorValues.get(Sensor.TYPE_ROTATION_VECTOR);
+                    data.put("accel.x", sensorData.accel[0]);
+                    data.put("accel.y", sensorData.accel[1]);
+                    data.put("accel.z", sensorData.accel[2]);
+                    data.put("gyro.x", sensorData.gyro[0]);
+                    data.put("gyro.y", sensorData.gyro[1]);
+                    data.put("gyro.z", sensorData.gyro[2]);
+                    data.put("mag.x", sensorData.mag[0]);
+                    data.put("mag.y", sensorData.mag[1]);
+                    data.put("mag.z", sensorData.mag[2]);
                     float[] quat = new float[4];
-                    SensorManager.getQuaternionFromVector(quat, rot);
+                    SensorManager.getQuaternionFromVector(quat, sensorData.rot);
                     data.put("rot.w", quat[0]);
                     data.put("rot.x", quat[1]);
                     data.put("rot.y", quat[2]);
                     data.put("rot.z", quat[3]);
-
-                    float[] pressure = sensorValues.get(Sensor.TYPE_PRESSURE);
-                    data.put("pressure", pressure[0]);
-
-                    float[] gravity = sensorValues.get(Sensor.TYPE_GRAVITY);
-                    data.put("gravity.x", gravity[0]);
-                    data.put("gravity.y", gravity[1]);
-                    data.put("gravity.z", gravity[2]);
-
-                    float[] linear = sensorValues.get(Sensor.TYPE_LINEAR_ACCELERATION);
-                    data.put("linear_accel.x", linear[0]);
-                    data.put("linear_accel.y", linear[1]);
-                    data.put("linear_accel.z", linear[2]);
+                    data.put("pressure", sensorData.pressure[0]);
+                    data.put("gravity.x", sensorData.gravity[0]);
+                    data.put("gravity.y", sensorData.gravity[1]);
+                    data.put("gravity.z", sensorData.gravity[2]);
+                    data.put("linear_accel.x", sensorData.linear[0]);
+                    data.put("linear_accel.y", sensorData.linear[1]);
+                    data.put("linear_accel.z", sensorData.linear[2]);
 
                     imuDataBuffer.add(data);
                     count++;
+                    sensorData.reset();
                 }
                 handler.postDelayed(this, IMU_INTERVAL_MS);
             }
@@ -280,7 +332,6 @@ public class SensorDataService extends Service {
         handler.post(imuCollector);
     }
 
-    // CSV 파일로 데이터 저장
     private void saveToCSV(String sensorType, Map<String, Object> data) {
         executorService.execute(() -> {
             try {
@@ -291,18 +342,21 @@ public class SensorDataService extends Service {
 
                 String fileName = currentDate + "_" + sensorType + ".csv";
                 File file = new File(directory, fileName);
-                boolean isNewFile = !file.exists();
+                boolean needsHeader = !file.exists() || file.length() == 0; // 파일이 없거나 비어 있을 때 헤더 기록
 
                 try (FileWriter writer = new FileWriter(file, true)) {
-                    if (isNewFile) {
-                        writer.append(String.join(",", data.keySet())).append("\n");
+                    if (needsHeader) {
+                        String header = String.join(",", data.keySet());
+                        writer.append(header).append("\n");
+                        Log.d(TAG, sensorType + " CSV 헤더 기록: " + header);
                     }
-                    StringBuilder line = new StringBuilder();
+                    StringBuilder line = new StringBuilder(data.size() * 10);
                     for (Object value : data.values()) {
                         if (line.length() > 0) line.append(",");
                         line.append(value.toString());
                     }
                     writer.append(line.toString()).append("\n");
+                    Log.d(TAG, sensorType + " CSV 데이터 기록: " + line.toString());
                 }
             } catch (IOException e) {
                 Log.e(TAG, "CSV 저장 실패: " + sensorType, e);
@@ -315,8 +369,5 @@ public class SensorDataService extends Service {
         super.onDestroy();
         handler.removeCallbacksAndMessages(null);
         executorService.shutdown();
-        if (sensorManager != null) {
-            sensorManager.unregisterListener((SensorEventListener) this);
-        }
     }
 }
