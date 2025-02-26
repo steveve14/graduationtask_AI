@@ -361,7 +361,7 @@ public class SensorDataService extends Service {
                         }
                     }
                     writer.append(line.toString()).append("\n");
-                    Log.d(TAG, sensorType + " CSV 데이터 기록: " + line.toString());
+//                    Log.d(TAG, sensorType + " CSV 데이터 기록: " + line.toString());
                 }
             } catch (IOException e) {
                 Log.e(TAG, "CSV 저장 실패: " + sensorType, e);
